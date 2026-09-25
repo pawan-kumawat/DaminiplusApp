@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Record Explanation</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel2: #16213a;
+    --border: #2d3b57;
+    --text: #e5e9f2;
+    --text2: #9aa7c2;
+    --accent: #4f7bff;
+    --accent-dim: rgba(79,123,255,.15);
+    --red: #ef4444;
+    --green: #22c55e;
+    --canvas-bg: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  #toolbarToggle {
+    min-width: 78px; height: 38px; padding: 0 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); font-size: 13px; font-weight: 700;
+  }
+  #toolbarToggle.active { background: var(--accent); border-color: var(--accent); }
+  #toolsPanel { display: none; width: 100%; align-items: center; gap: 6px; flex-wrap: wrap; order: 20; padding-top: 2px; }
+  body.tools-open #toolsPanel { display: flex; }
+  #questionContext { order: 15; width: 100%; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--border); }
+  #questionContextText { min-width: 0; flex: 1; }
+  #questionContextLabel { display:block; color:var(--accent); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+  #questionText { display:block; color:var(--text); font-size:12px; line-height:1.35; max-height:34px; overflow:auto; }
+  #questionImage { display:none; width:42px; height:42px; border-radius:7px; object-fit:cover; background:white; }
+  .board-mode { padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--text2); font-size: 12px; font-weight: 600; }
+  .board-mode.active { background: var(--accent); color: white; }
+  #addBoardBtn { padding: 8px 10px; border: 0; border-radius: 8px; background: var(--accent); color: white; font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+
+  /* ── Toolbar — flex-wrap already makes this collapse onto a second
+     row on a phone-width screen; touch targets below are kept at the
+     desktop admin's 34px, which meets the ~32px minimum comfortably. ── */
+  #toolbar {
+    position: fixed;
+    inset: 0 0 auto 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 58px 8px 10px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    z-index: 20;
+  }
+  .tb-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    background: var(--panel2);
+    border-radius: 10px;
+  }
+  .tb-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--border); }
+  .tb-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border: none; border-radius: 8px;
+    background: transparent; color: var(--text2);
+    transition: background .12s, color .12s;
+  }
+  .tb-btn svg { width: 18px; height: 18px; }
+  .tb-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+  .tb-btn.active { background: var(--accent); color: #fff; }
+  .tb-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .tb-btn:disabled:hover { background: transparent; color: var(--text2); }
+
+  .swatch {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.15);
+    padding: 0;
+  }
+  .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  #colorCustom { width: 30px; height: 30px; border: none; background: none; padding: 0; border-radius: 8px; overflow: hidden; }
+  #colorCustom::-webkit-color-swatch-wrapper { padding: 2px; }
+  #colorCustom::-webkit-color-swatch { border-radius: 6px; border: none; }
+
+  #sizeRange { width: 70px; accent-color: var(--accent); }
+  .size-dot { border-radius: 50%; background: var(--text); flex-shrink: 0; }
+
+  #zoomLabel { font-size: 12px; color: var(--text2); min-width: 40px; text-align: center; cursor: pointer; }
+
+  .tb-spacer { flex: 1; }
+
+  #recordBtn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border: none; border-radius: 10px;
+    background: var(--red); color: #fff; font-weight: 600; font-size: 13.5px;
+  }
+  #recordBtn.idle { background: var(--red); }
+  #recordBtn.recording { background: #7f1d1d; animation: pulse 1.4s infinite; }
+  #recordBtn .dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; }
+  #recordBtn.recording .dot { background: #ff5c5c; animation: blink 1s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.5); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  #recTimer { font-variant-numeric: tabular-nums; }
+
+  #closeBtn {
+    padding: 10px 14px; border: none; border-radius: 10px;
+    background: transparent; color: var(--text2); font-size: 13.5px; font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  #closeBtn:hover { color: var(--text); border-color: var(--text2); }
+
+  /* ── Canvas area ───────────────────────────────────── */
+  #canvasWrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #ffffff;
+    touch-action: none;
+  }
+  #board { position: absolute; inset: 0; display: block; }
+  #board.tool-pan { cursor: grab; }
+  #board.tool-pan.panning { cursor: grabbing; }
+  #board.tool-text { cursor: text; }
+  #board.tool-draw { cursor: crosshair; }
+
+  #textInputLayer {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  #textInputLayer textarea {
+    position: absolute; pointer-events: auto;
+    border: 2px dashed var(--accent); background: rgba(255,255,255,.92);
+    color: #111; padding: 2px 4px; min-width: 140px; min-height: 28px;
+    resize: none; outline: none; line-height: 1.2;
+    font-family: inherit;
+  }
+
+  #draftBanner {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 9px 14px; border-radius: 10px; font-size: 13px;
+    display: none; align-items: center; gap: 10px; z-index: 15;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    max-width: calc(100% - 20px);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #draftBanner button {
+    border: none; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; font-weight: 600;
+  }
+  #draftBanner .primary { background: var(--accent); color: #fff; }
+  #draftBanner .ghost { background: transparent; color: var(--text2); }
+
+  #autosaveFlash {
+    position: absolute; bottom: 12px; left: 12px;
+    background: rgba(15,23,42,.85); color: var(--text2);
+    font-size: 11.5px; padding: 5px 10px; border-radius: 8px;
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  #autosaveFlash.show { opacity: 1; }
+
+  /* ── Preview / finalize overlay ───────────────────────── */
+  #previewOverlay {
+    position: fixed; inset: 0; background: rgba(2,6,23,.88);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+    padding: 24px;
+  }
+  #previewOverlay.show { display: flex; }
+  #previewCard {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 22px; width: min(560px, 100%); text-align: center;
+    max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  #previewCard h2 { margin: 0 0 4px; font-size: 18px; }
+  #previewCard p { margin: 0 0 16px; color: var(--text2); font-size: 13px; }
+  #previewVideo { width: 100%; max-height: 70vh; height: auto; object-fit: contain; border-radius: 10px; background: #000; margin-bottom: 16px; }
+  #previewActions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #previewActions button {
+    border: none; border-radius: 10px; padding: 13px 18px; font-weight: 600; font-size: 13.5px;
+    flex: 1; min-width: 140px;
+  }
+  #useRecordingBtn { background: var(--accent); color: #fff; }
+  #discardRecordingBtn { background: transparent; color: var(--text2); border: 1px solid var(--border) !important; }
+  #uploadStatus { margin-top: 12px; font-size: 12.5px; color: var(--text2); display: none; }
+
+  #micDeniedNote { font-size: 12px; color: var(--red); margin-top: 8px; display: none; }
+
+  /* ── Blocking banner when the app didn't pass the params this page
+     needs (token/questionId/pillar/lang) — should never show up in
+     normal use, only if something upstream is misconfigured. ────── */
+  #paramErrorOverlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 100;
+    display: none; align-items: center; justify-content: center; padding: 24px; text-align: center;
+  }
+  #paramErrorOverlay.show { display: flex; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <button id="closeBtn" type="button">&larr; Close</button>
+
+  <button id="toolbarToggle" type="button" title="Open drawing tools" aria-label="Open drawing tools">Tools ▾</button>
+
+  <div id="toolsPanel">
+
+  <div class="tb-group" id="toolGroup">
+    <button class="tb-btn" data-tool="pan" title="Pan / Move (V)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-4.53a1.85 1.85 0 0 1 2.6-2.63L7 15"/></svg>
+    </button>
+    <button class="tb-btn active" data-tool="pen" title="Pen (P)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+    </button>
+    <button class="tb-btn" data-tool="highlighter" title="Highlighter (H)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-4.2-4.2a2 2 0 0 1 0-2.8L15 5"/><path d="M14 6 18 2l4 4-4 4"/></svg>
+    </button>
+    <button class="tb-btn" data-tool="eraser" title="Eraser (E)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4L15.6 2.4a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L14 18"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+    </button>
+    <button class="tb-btn" data-tool="text" title="Text (T)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+    </button>
+  </div>
+
+  <div class="tb-group">
+    <button class="tb-btn" data-tool="line" title="Line (L)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+    </button>
+    <button class="tb-btn" data-tool="rect" title="Rectangle (R)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="1.5"/></svg>
+    </button>
+    <button class="tb-btn" data-tool="circle" title="Circle (C)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/></svg>
+    </button>
+    <button class="tb-btn" data-tool="arrow" title="Arrow (A)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg>
+    </button>
+  </div>
+
+  <div class="tb-group" id="colorGroup">
+    <button class="swatch active" data-color="#1e293b" style="background:#1e293b" title="Ink"></button>
+    <button class="swatch" data-color="#ef4444" style="background:#ef4444" title="Red"></button>
+    <button class="swatch" data-color="#2563eb" style="background:#2563eb" title="Blue"></button>
+    <button class="swatch" data-color="#16a34a" style="background:#16a34a" title="Green"></button>
+    <button class="swatch" data-color="#f59e0b" style="background:#f59e0b" title="Orange"></button>
+    <input type="color" id="colorCustom" value="#1e293b" title="Custom color">
+  </div>
+
+  <div class="tb-group">
+    <div class="size-dot" id="sizeDot" style="width:8px;height:8px;margin-left:6px"></div>
+    <input type="range" id="sizeRange" min="1" max="40" value="4">
+  </div>
+
+  <div class="tb-group">
+    <button class="tb-btn" id="undoBtn" title="Undo (Ctrl+Z)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+    </button>
+    <button class="tb-btn" id="redoBtn" title="Redo (Ctrl+Shift+Z)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+    </button>
+    <button class="tb-btn" id="clearBtn" title="Clear canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+    </button>
+  </div>
+
+  <div class="tb-group">
+    <button class="tb-btn" id="zoomOutBtn" title="Zoom out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <span id="zoomLabel" title="Reset zoom">100%</span>
+    <button class="tb-btn" id="zoomInBtn" title="Zoom in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+  </div>
+
+  </div>
+
+  <div class="tb-group" aria-label="Board direction">
+    <button class="board-mode active" data-board-direction="portrait" type="button">Portrait</button>
+    <button class="board-mode" data-board-direction="landscape" type="button">Landscape</button>
+  </div>
+  <button id="addBoardBtn" type="button" title="Extend this whiteboard with more writing space">+ Add Board</button>
+
+  <div class="tb-spacer"></div>
+
+  <button id="recordBtn" class="idle" type="button">
+    <span class="dot"></span>
+    <span id="recordLabel">Start Recording</span>
+    <span id="recTimer" style="display:none">00:00</span>
+  </button>
+
+  <div id="questionContext">
+    <img id="questionImage" alt="Question image">
+    <div id="questionContextText">
+      <span id="questionContextLabel">Add solution for this question</span>
+      <span id="questionText"></span>
+    </div>
+  </div>
+</div>
+
+<div id="canvasWrap">
+  <canvas id="board"></canvas>
+  <div id="textInputLayer"></div>
+  <div id="draftBanner">
+    <span>You have an unsaved draft from earlier.</span>
+    <button class="primary" id="restoreDraftBtn">Restore</button>
+    <button class="ghost" id="discardDraftBtn">Discard</button>
+  </div>
+  <div id="autosaveFlash">Draft saved</div>
+</div>
+
+<div id="previewOverlay">
+  <div id="previewCard">
+    <h2>Recording ready</h2>
+    <p>Review your explanation recording before saving it to this question.</p>
+    <video id="previewVideo" controls playsinline></video>
+    <div id="micDeniedNote"></div>
+    <div id="previewActions">
+      <button id="discardRecordingBtn" type="button">Discard &amp; Record Again</button>
+      <button id="useRecordingBtn" type="button">Use This Recording</button>
+    </div>
+    <div id="uploadStatus"></div>
+  </div>
+</div>
+
+<div id="paramErrorOverlay">
+  <div>
+    <h2 style="margin:0 0 8px">Can't open this recording</h2>
+    <p style="color:var(--text2);font-size:13.5px">Missing info from the app — please go back and try again.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Runtime values are injected by TeacherRecordScreen before this bundled asset loads.
+  // apiBase lets a local dev build point at a non-production API; in the
+  // shipped app this is always same-origin (the page is served by the
+  // exact backend it talks to), so it's the default.
+  const API_BASE = __API_BASE__;
+  const TOKEN = __TOKEN__;
+  const QUESTION_ID = __QUESTION_ID__;
+  const LANGUAGE_ID = __LANGUAGE_ID__;
+  // Which content pillar this question belongs to — the three teacher
+  // attach endpoints are shaped identically but live at different paths
+  // (see backend/routes/teacherApp.js).
+  const PILLAR = __PILLAR__;
+  const QUESTION_TITLE = __QUESTION_TITLE__;
+  const QUESTION_IMAGE_URL = __QUESTION_IMAGE_URL__;
+  const DRAFT_KEY = 'dp_teacher_record_draft_v1';
+
+  const ATTACH_PATH = {
+    board: `${API_BASE}/app/questions/${QUESTION_ID}/explanation-video`,
+    exam: `${API_BASE}/app/exam-questions/${QUESTION_ID}/explanation-video`,
+    otherCourse: `${API_BASE}/app/other-course-questions/${QUESTION_ID}/explanation-video`,
+  }[PILLAR];
+
+  // Flutter registers this JavaScript channel on the WebViewController
+  // before loading this page (see TeacherRecordScreen) — every message
+  // is a JSON string the Dart side decodes by `type`.
+  function notifyApp(payload) {
+    try {
+      if (window.TeacherRecorder) window.TeacherRecorder.postMessage(JSON.stringify(payload));
+    } catch (e) { /* no-op outside the app's WebView */ }
+  }
+
+  if (!TOKEN || !QUESTION_ID || !ATTACH_PATH) {
+    document.getElementById('paramErrorOverlay').classList.add('show');
+    notifyApp({ type: 'error', message: 'Missing token/questionId/pillar' });
+    return;
+  }
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvasWrap');
+  const textLayer = document.getElementById('textInputLayer');
+
+  const questionTextEl = document.getElementById('questionText');
+  questionTextEl.textContent = QUESTION_TITLE || 'Question image shown here';
+  if (QUESTION_IMAGE_URL) {
+    const questionImageEl = document.getElementById('questionImage');
+    questionImageEl.src = QUESTION_IMAGE_URL;
+    questionImageEl.style.display = 'block';
+  }
+
+  // Each board is one viewport-sized sheet. New sheets extend the
+  // recording workspace in the chosen direction and survive draft restore.
+  let boards = [{ x: 0, y: 0 }];
+  let boardDirection = 'portrait';
+  let boardWidth = 0;
+  let boardHeight = 0;
+  let strokes = [];
+  let undoStack = [];
+  let redoStack = [];
+  let currentStroke = null;
+  let tool = 'pen';
+  let color = '#1e293b';
+  let brushSize = 4;
+  const view = { scale: 1, x: 0, y: 0 };
+  let isPointerDown = false;
+  let panLast = null;
+  let activePointerId = null;
+
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let micStream = null;
+  let canvasStream = null;
+  let recording = false;
+  let recordStartedAt = 0;
+  let recordTimerHandle = null;
+  let recordedBlob = null;
+  let recordedBlobUrl = null;
+
+  // ── DPR-aware sizing (crisp on retina, world-space strokes stay
+  // resolution independent so zoom/pan and window resizing never
+  // distort or lose anything already drawn) ─────────────────────
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    if (!boardWidth || !boardHeight) { boardWidth = rect.width; boardHeight = rect.height; }
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    redraw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function screenToWorld(sx, sy) {
+    return { x: (sx - view.x) / view.scale, y: (sy - view.y) / view.scale };
+  }
+
+  function applyTransform() {
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.x, dpr * view.y);
+  }
+
+  function drawArrowHead(c, x1, y1, x2, y2, size) {
+    const headLen = Math.max(10, size * 3.2);
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    c.beginPath();
+    c.moveTo(x2, y2);
+    c.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 7), y2 - headLen * Math.sin(angle - Math.PI / 7));
+    c.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 7), y2 - headLen * Math.sin(angle + Math.PI / 7));
+    c.closePath();
+    c.fill();
+  }
+
+  function drawStroke(c, s) {
+    c.save();
+    c.globalCompositeOperation = s.type === 'eraser' ? 'destination-out' : 'source-over';
+    c.globalAlpha = s.type === 'highlighter' ? 0.35 : 1;
+    c.strokeStyle = s.color;
+    c.fillStyle = s.color;
+    c.lineWidth = s.size;
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+
+    if (s.type === 'pen' || s.type === 'highlighter' || s.type === 'eraser') {
+      const pts = s.points;
+      if (!pts.length) { c.restore(); return; }
+      if (pts.length === 1) {
+        c.beginPath();
+        c.arc(pts[0].x, pts[0].y, s.size / 2, 0, Math.PI * 2);
+        c.fill();
+      } else {
+        c.beginPath();
+        c.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length - 1; i++) {
+          const mx = (pts[i].x + pts[i + 1].x) / 2;
+          const my = (pts[i].y + pts[i + 1].y) / 2;
+          c.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        }
+        c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+        c.stroke();
+      }
+    } else if (s.type === 'line') {
+      c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+    } else if (s.type === 'rect') {
+      c.strokeRect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1));
+    } else if (s.type === 'circle') {
+      const rx = Math.abs(s.x2 - s.x1) / 2, ry = Math.abs(s.y2 - s.y1) / 2;
+      const cx = (s.x1 + s.x2) / 2, cy = (s.y1 + s.y2) / 2;
+      if (rx > 0.5 && ry > 0.5) {
+        c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); c.stroke();
+      }
+    } else if (s.type === 'arrow') {
+      c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+      drawArrowHead(c, s.x1, s.y1, s.x2, s.y2, s.size);
+    } else if (s.type === 'text') {
+      c.font = `${Math.max(12, s.size * 4)}px -apple-system, sans-serif`;
+      c.textBaseline = 'top';
+      (s.text || '').split('\n').forEach((line, i) => {
+        c.fillText(line, s.x, s.y + i * (Math.max(12, s.size * 4) * 1.25));
+      });
+    }
+    c.restore();
+  }
+
+  function redraw() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // The captured canvas is white edge-to-edge. Added space is part of
+    // this same board, so no grey background, page border, or gap can
+    // appear in the recording while the teacher pans between sections.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    applyTransform();
+    for (const s of strokes) drawStroke(ctx, s);
+    if (currentStroke) drawStroke(ctx, currentStroke);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  // ── History (undo/redo) ─────────────────────────────────────
+  function commitStroke(s) {
+    strokes.push(s);
+    undoStack.push({ type: 'add' });
+    redoStack = [];
+    redraw();
+    scheduleAutosave();
+    updateHistoryButtons();
+  }
+  function clearCanvas() {
+    if (!strokes.length) return;
+    if (!confirm('Clear the entire whiteboard? You can still Undo right after.')) return;
+    undoStack.push({ type: 'clear', prev: strokes });
+    strokes = [];
+    redoStack = [];
+    redraw();
+    scheduleAutosave();
+    updateHistoryButtons();
+  }
+  function undo() {
+    const action = undoStack.pop();
+    if (!action) return;
+    if (action.type === 'add') redoStack.push({ type: 'add', stroke: strokes.pop() });
+    else if (action.type === 'clear') { redoStack.push({ type: 'clear', prev: strokes }); strokes = action.prev; }
+    redraw(); scheduleAutosave(); updateHistoryButtons();
+  }
+  function redo() {
+    const action = redoStack.pop();
+    if (!action) return;
+    if (action.type === 'add') { strokes.push(action.stroke); undoStack.push({ type: 'add' }); }
+    else if (action.type === 'clear') { undoStack.push({ type: 'clear', prev: strokes }); strokes = []; }
+    redraw(); scheduleAutosave(); updateHistoryButtons();
+  }
+  function updateHistoryButtons() {
+    document.getElementById('undoBtn').disabled = !undoStack.length;
+    document.getElementById('redoBtn').disabled = !redoStack.length;
+  }
+
+  // ── Autosave draft (localStorage — scoped per question via the key
+  // below so drafts for two different questions never collide) ──────
+  const scopedDraftKey = `${DRAFT_KEY}_${QUESTION_ID}_${LANGUAGE_ID}`;
+  let autosaveTimer = null;
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(saveDraft, 1200);
+  }
+  function saveDraft() {
+    try {
+      localStorage.setItem(scopedDraftKey, JSON.stringify({ strokes, boards, boardWidth, boardHeight, boardDirection, savedAt: Date.now() }));
+      flashAutosave();
+    } catch (e) { /* storage full/unavailable — non-fatal */ }
+  }
+  function flashAutosave() {
+    const el = document.getElementById('autosaveFlash');
+    el.classList.add('show');
+    clearTimeout(flashAutosave._t);
+    flashAutosave._t = setTimeout(() => el.classList.remove('show'), 1200);
+  }
+  function clearDraft() { try { localStorage.removeItem(scopedDraftKey); } catch (e) {} }
+
+  function checkForDraft() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(scopedDraftKey) || 'null'); } catch (e) {}
+    if (saved && Array.isArray(saved.strokes) && (saved.strokes.length || (Array.isArray(saved.boards) && saved.boards.length > 1))) {
+      document.getElementById('draftBanner').style.display = 'flex';
+      document.getElementById('restoreDraftBtn').onclick = () => {
+        strokes = saved.strokes;
+        if (Array.isArray(saved.boards) && saved.boards.length) boards = saved.boards;
+        if (saved.boardWidth > 0) boardWidth = saved.boardWidth;
+        if (saved.boardHeight > 0) boardHeight = saved.boardHeight;
+        if (saved.boardDirection) setBoardDirection(saved.boardDirection === 'horizontal' ? 'landscape' : saved.boardDirection === 'vertical' ? 'portrait' : saved.boardDirection);
+        undoStack = []; redoStack = [];
+        redraw(); updateHistoryButtons();
+        document.getElementById('draftBanner').style.display = 'none';
+      };
+      document.getElementById('discardDraftBtn').onclick = () => {
+        clearDraft();
+        document.getElementById('draftBanner').style.display = 'none';
+      };
+    }
+  }
+
+  function setBoardDirection(direction) {
+    if (direction !== 'portrait' && direction !== 'landscape') return;
+    boardDirection = direction;
+    document.querySelectorAll('[data-board-direction]').forEach(button => {
+      button.classList.toggle('active', button.dataset.boardDirection === direction);
+    });
+    notifyApp({ type: 'orientation', orientation: direction });
+    scheduleAutosave();
+  }
+  document.querySelectorAll('[data-board-direction]').forEach(button => {
+    button.addEventListener('click', () => setBoardDirection(button.dataset.boardDirection));
+  });
+  document.getElementById('addBoardBtn').addEventListener('click', () => {
+    const last = boards[boards.length - 1];
+    // Extend one continuous canvas section with no separator or gap.
+    // Portrait continues downward; Landscape continues to the right.
+    const next = boardDirection === 'landscape'
+      ? { x: last.x + boardWidth, y: last.y }
+      : { x: last.x, y: last.y + boardHeight };
+    boards.push(next);
+    view.scale = 1;
+    view.x = -next.x;
+    view.y = -next.y;
+    document.getElementById('zoomLabel').textContent = '100%';
+    redraw();
+    scheduleAutosave();
+  });
+  const toolbarToggle = document.getElementById('toolbarToggle');
+  toolbarToggle.addEventListener('click', () => {
+    const open = document.body.classList.toggle('tools-open');
+    toolbarToggle.classList.toggle('active', open);
+    toolbarToggle.textContent = open ? 'Tools ▴' : 'Tools ▾';
+    toolbarToggle.title = open ? 'Close drawing tools' : 'Open drawing tools';
+    toolbarToggle.setAttribute('aria-label', toolbarToggle.title);
+  });
+
+  // ── Tool / color / size selection ───────────────────────────
+  function setTool(t) {
+    tool = t;
+    document.querySelectorAll('#toolGroup .tb-btn, [data-tool]').forEach(b => {
+      b.classList.toggle('active', b.dataset.tool === t);
+    });
+    canvas.classList.remove('tool-pan', 'tool-text', 'tool-draw');
+    if (t === 'pan') canvas.classList.add('tool-pan');
+    else if (t === 'text') canvas.classList.add('tool-text');
+    else canvas.classList.add('tool-draw');
+  }
+  document.querySelectorAll('[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => setTool(btn.dataset.tool));
+  });
+
+  function setColor(c) {
+    color = c;
+    document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.color === c));
+    document.getElementById('colorCustom').value = c;
+  }
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.addEventListener('click', () => setColor(sw.dataset.color));
+  });
+  document.getElementById('colorCustom').addEventListener('input', e => setColor(e.target.value));
+
+  const sizeRange = document.getElementById('sizeRange');
+  const sizeDot = document.getElementById('sizeDot');
+  function updateSizeDot() {
+    const d = Math.max(4, Math.min(28, brushSize * 1.4));
+    sizeDot.style.width = d + 'px';
+    sizeDot.style.height = d + 'px';
+  }
+  sizeRange.addEventListener('input', () => { brushSize = Number(sizeRange.value); updateSizeDot(); });
+  updateSizeDot();
+
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('redoBtn').addEventListener('click', redo);
+  document.getElementById('clearBtn').addEventListener('click', clearCanvas);
+
+  // ── Zoom ─────────────────────────────────────────────────────
+  function setZoom(newScale, aroundX, aroundY) {
+    newScale = Math.min(6, Math.max(0.25, newScale));
+    const before = screenToWorld(aroundX, aroundY);
+    view.scale = newScale;
+    view.x = aroundX - before.x * view.scale;
+    view.y = aroundY - before.y * view.scale;
+    document.getElementById('zoomLabel').textContent = Math.round(view.scale * 100) + '%';
+    redraw();
+  }
+  document.getElementById('zoomInBtn').addEventListener('click', () => {
+    const r = wrap.getBoundingClientRect();
+    setZoom(view.scale * 1.2, r.width / 2, r.height / 2);
+  });
+  document.getElementById('zoomOutBtn').addEventListener('click', () => {
+    const r = wrap.getBoundingClientRect();
+    setZoom(view.scale / 1.2, r.width / 2, r.height / 2);
+  });
+  document.getElementById('zoomLabel').addEventListener('click', () => {
+    view.scale = 1; view.x = 0; view.y = 0;
+    document.getElementById('zoomLabel').textContent = '100%';
+    redraw();
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    setZoom(view.scale * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - rect.left, e.clientY - rect.top);
+  }, { passive: false });
+
+  // ── Drawing / pointer handling (Pointer Events cover touch too,
+  // so this works the same with a finger as it does with a mouse) ────
+  function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { sx: e.clientX - rect.left, sy: e.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button === 2) return;
+    isPointerDown = true;
+    activePointerId = e.pointerId;
+    canvas.setPointerCapture(e.pointerId);
+    const { sx, sy } = pointerPos(e);
+
+    if (tool === 'pan') {
+      panLast = { sx, sy };
+      canvas.classList.add('panning');
+      return;
+    }
+    if (tool === 'text') {
+      openTextEditor(sx, sy);
+      isPointerDown = false;
+      return;
+    }
+
+    const w = screenToWorld(sx, sy);
+    if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') {
+      currentStroke = { type: tool, color, size: brushSize, points: [w] };
+    } else if (['line', 'rect', 'circle', 'arrow'].includes(tool)) {
+      currentStroke = { type: tool, color, size: brushSize, x1: w.x, y1: w.y, x2: w.x, y2: w.y };
+    }
+    redraw();
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (!isPointerDown || e.pointerId !== activePointerId) return;
+    const { sx, sy } = pointerPos(e);
+
+    if (tool === 'pan' && panLast) {
+      view.x += sx - panLast.sx;
+      view.y += sy - panLast.sy;
+      panLast = { sx, sy };
+      redraw();
+      return;
+    }
+    if (!currentStroke) return;
+    const w = screenToWorld(sx, sy);
+    if (currentStroke.points) {
+      const last = currentStroke.points[currentStroke.points.length - 1];
+      if (Math.hypot(w.x - last.x, w.y - last.y) >= 1) currentStroke.points.push(w);
+    } else {
+      currentStroke.x2 = w.x;
+      currentStroke.y2 = w.y;
+    }
+    redraw();
+  });
+
+  function endStroke(e) {
+    if (!isPointerDown) return;
+    isPointerDown = false;
+    canvas.classList.remove('panning');
+    if (activePointerId != null) {
+      try { canvas.releasePointerCapture(activePointerId); } catch (err) {}
+    }
+    activePointerId = null;
+    panLast = null;
+    if (currentStroke) {
+      const s = currentStroke;
+      currentStroke = null;
+      const isShape = ['line', 'rect', 'circle', 'arrow'].includes(s.type);
+      const tooSmall = isShape && Math.hypot(s.x2 - s.x1, s.y2 - s.y1) < 2;
+      if (!tooSmall) commitStroke(s); else redraw();
+    }
+  }
+  canvas.addEventListener('pointerup', endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
+  canvas.addEventListener('pointerleave', e => { if (tool === 'pan') return; });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // ── Text tool ────────────────────────────────────────────────
+  function openTextEditor(sx, sy) {
+    const ta = document.createElement('textarea');
+    ta.style.left = sx + 'px';
+    ta.style.top = sy + 'px';
+    ta.style.fontSize = Math.max(12, brushSize * 4) + 'px';
+    ta.style.color = color;
+    textLayer.appendChild(ta);
+    ta.focus();
+    function commit() {
+      const text = ta.value.trim();
+      textLayer.removeChild(ta);
+      if (!text) return;
+      const w = screenToWorld(sx, sy);
+      commitStroke({ type: 'text', color, size: brushSize, x: w.x, y: w.y, text });
+    }
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ta.blur(); }
+      if (e.key === 'Escape') { textLayer.removeChild(ta); }
+    });
+    ta.addEventListener('blur', commit);
+  }
+
+  // ── Keyboard shortcuts (harmless with no keyboard attached — a phone
+  // just never fires these) ─────────────────────────────────────────
+  const toolKeys = { p: 'pen', h: 'highlighter', e: 'eraser', t: 'text', l: 'line', r: 'rect', c: 'circle', a: 'arrow', v: 'pan' };
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      e.shiftKey ? redo() : undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+    const t = toolKeys[e.key.toLowerCase()];
+    if (t) setTool(t);
+  });
+
+  // ── Recording ────────────────────────────────────────────────
+  function pickMimeType() {
+    const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    for (const c of candidates) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return '';
+  }
+
+  function updateRecordUI() {
+    const btn = document.getElementById('recordBtn');
+    const label = document.getElementById('recordLabel');
+    const timer = document.getElementById('recTimer');
+    btn.classList.toggle('recording', recording);
+    btn.classList.toggle('idle', !recording);
+    label.textContent = recording ? 'Stop Recording' : 'Start Recording';
+    timer.style.display = recording ? 'inline' : 'none';
+  }
+
+  function updateTimerDisplay() {
+    const secs = Math.floor((Date.now() - recordStartedAt) / 1000);
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    document.getElementById('recTimer').textContent = `${mm}:${ss}`;
+  }
+
+  function beforeUnloadHandler(e) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+
+  async function startRecording() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      alert('Microphone access is required to record the explanation. Please allow microphone permission and try again.');
+      return;
+    }
+    canvasStream = canvas.captureStream(30);
+    const combined = new MediaStream([...canvasStream.getVideoTracks(), ...micStream.getAudioTracks()]);
+    const mimeType = pickMimeType();
+    recordedChunks = [];
+    try {
+      mediaRecorder = mimeType ? new MediaRecorder(combined, { mimeType }) : new MediaRecorder(combined);
+    } catch (err) {
+      alert('Recording is not supported here. Please update your device/app and try again.');
+      micStream.getTracks().forEach(t => t.stop());
+      return;
+    }
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = onRecordingStopped;
+    // A timeslice creates many independent WebM clusters. Android WebView can
+    // assign a fresh timestamp base to each cluster, which inflates a short
+    // recording when the chunks are joined. Emit one continuous WebM instead.
+    mediaRecorder.start();
+    recording = true;
+    recordStartedAt = Date.now();
+    updateRecordUI();
+    updateTimerDisplay();
+    recordTimerHandle = setInterval(updateTimerDisplay, 500);
+    window.addEventListener('beforeunload', beforeUnloadHandler);
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    mediaRecorder.stop();
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (canvasStream) canvasStream.getTracks().forEach(t => t.stop());
+    clearInterval(recordTimerHandle);
+    recording = false;
+    updateRecordUI();
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+  }
+
+  function onRecordingStopped() {
+    recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+    recordedBlobUrl = URL.createObjectURL(recordedBlob);
+    const video = document.getElementById('previewVideo');
+    video.src = recordedBlobUrl;
+    document.getElementById('previewOverlay').classList.add('show');
+  }
+
+  document.getElementById('recordBtn').addEventListener('click', () => {
+    recording ? stopRecording() : startRecording();
+  });
+
+  document.getElementById('discardRecordingBtn').addEventListener('click', () => {
+    document.getElementById('previewOverlay').classList.remove('show');
+    if (recordedBlobUrl) URL.revokeObjectURL(recordedBlobUrl);
+    recordedBlob = null; recordedBlobUrl = null;
+    document.getElementById('recTimer').textContent = '00:00';
+  });
+
+  // Two calls: upload the raw file, then attach that URL onto this
+  // specific question+language (the attach step is what enforces the
+  // once-per-language lock server-side — see teacherVideoController.js).
+  document.getElementById('useRecordingBtn').addEventListener('click', async () => {
+    if (!recordedBlob) return;
+    const statusEl = document.getElementById('uploadStatus');
+    const useBtn = document.getElementById('useRecordingBtn');
+    const discardBtn = document.getElementById('discardRecordingBtn');
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Uploading recording…';
+    useBtn.disabled = true; discardBtn.disabled = true;
+    try {
+      const fd = new FormData();
+      fd.append('video', recordedBlob, 'explanation.webm');
+      const uploadRes = await fetch(`${API_BASE}/app/uploads/explanation-video`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + TOKEN },
+        body: fd,
+      });
+      const uploadJson = await uploadRes.json().catch(() => null);
+      if (!uploadRes.ok || !uploadJson || !uploadJson.status) throw new Error((uploadJson && uploadJson.message) || 'Upload failed');
+
+      statusEl.textContent = 'Saving to question…';
+      const attachRes = await fetch(ATTACH_PATH, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ languageId: LANGUAGE_ID, url: uploadJson.data.url }),
+      });
+      const attachJson = await attachRes.json().catch(() => null);
+      if (!attachRes.ok || !attachJson || !attachJson.status) throw new Error((attachJson && attachJson.message) || 'Could not save to the question');
+
+      clearDraft();
+      window.removeEventListener('beforeunload', beforeUnloadHandler);
+      statusEl.textContent = 'Saved!';
+      notifyApp({ type: 'saved', url: uploadJson.data.url, languageId: LANGUAGE_ID });
+    } catch (err) {
+      statusEl.textContent = 'Failed: ' + err.message + ' — please try again.';
+      useBtn.disabled = false; discardBtn.disabled = false;
+    }
+  });
+
+  // ── Close ────────────────────────────────────────────────────
+  document.getElementById('closeBtn').addEventListener('click', () => {
+    if (recording) {
+      if (!confirm('Recording is in progress. Stop and discard it, and close?')) return;
+      stopRecording();
+    } else if (strokes.length) {
+      if (!confirm('Close without saving? Your draft is auto-saved, so you can pick up again next time.')) return;
+    }
+    notifyApp({ type: 'close' });
+  });
+
+  // ── Init ─────────────────────────────────────────────────────
+  setTool('pen');
+  setColor('#1e293b');
+  resizeCanvas();
+  checkForDraft();
+  updateHistoryButtons();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "426321454965",
+    "project_id": "daminiplus",
+    "storage_bucket": "daminiplus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:426321454965:android:b6742fa58441e353dfd53c",
+        "android_client_info": {
+          "package_name": "com.example.damini_plusapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6v1u_UIgkz87mBBxbJEvkq69xbUjTy5U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
