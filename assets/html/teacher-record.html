@@ -619,10 +619,8 @@
   document.getElementById('addBoardBtn').addEventListener('click', () => {
     const last = boards[boards.length - 1];
     // Extend one continuous canvas section with no separator or gap.
-    // Portrait continues downward; Landscape continues to the right.
-    const next = boardDirection === 'landscape'
-      ? { x: last.x + boardWidth, y: last.y }
-      : { x: last.x, y: last.y + boardHeight };
+    // Orientation changes the screen, but new boards always continue downward.
+    const next = { x: last.x, y: last.y + boardHeight };
     boards.push(next);
     view.scale = 1;
     view.x = -next.x;
