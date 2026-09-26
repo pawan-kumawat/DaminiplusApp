@@ -72,11 +72,6 @@ class _OtherCourseQuestionsScreenState
   // already answered, so a student resuming a long topic doesn't have
   // to page through everything they already did.
   Future<void> _jumpToResumePosition() async {
-    if (_topicReadOnly) {
-      if (mounted) setState(() => _currentIndex = 0);
-      return;
-    }
-
     int firstUnanswered() {
       for (var i = 0; i < _questions.length; i++) {
         if (_questions[i]['questionType'] != 'theory' &&
@@ -88,11 +83,6 @@ class _OtherCourseQuestionsScreenState
     }
 
     var idx = firstUnanswered();
-    while (idx == -1 && _hasMore && mounted) {
-      await _fetchQuestions(isLoadMore: true);
-      if (!mounted) return;
-      idx = firstUnanswered();
-    }
     if (idx == -1) idx = 0;
     if (idx > 0 && mounted) setState(() => _currentIndex = idx);
   }
@@ -204,22 +194,18 @@ class _OtherCourseQuestionsScreenState
 
         setState(() {
           _questions.addAll(parsed);
-          // Only populate past submissions if topic is in-progress (not completed).
-          // For completed topics, student enters to practice fresh, so questions start clear.
-          if (!_topicReadOnly) {
-            for (var i = 0; i < parsed.length; i++) {
-              final submission = parsed[i]['submission'];
-              if (submission is Map<String, dynamic>) {
-                _submissions[startIndex + i] = {
-                  'selectedOptionIndex':
-                      int.tryParse(
-                        submission['selectedOptionIndex']?.toString() ?? '',
-                      ) ??
-                      0,
-                  'isCorrect': submission['isCorrect'] == true,
-                  'answerText': submission['answerText']?.toString() ?? '',
-                };
-              }
+          for (var i = 0; i < parsed.length; i++) {
+            final submission = parsed[i]['submission'];
+            if (submission is Map<String, dynamic>) {
+              _submissions[startIndex + i] = {
+                'selectedOptionIndex':
+                    int.tryParse(
+                      submission['selectedOptionIndex']?.toString() ?? '',
+                    ) ??
+                    0,
+                'isCorrect': submission['isCorrect'] == true,
+                'answerText': submission['answerText']?.toString() ?? '',
+              };
             }
           }
         });
@@ -233,7 +219,7 @@ class _OtherCourseQuestionsScreenState
   }
 
   Future<void> _selectOption(int optionIndex) async {
-    if (_isSubmittingAnswer || _submissions[_currentIndex] != null) return;
+    if (_isSubmittingAnswer) return;
     final question = _questions[_currentIndex];
     final questionId = question['_id'] as String;
     if (questionId.isEmpty) return;
@@ -263,8 +249,7 @@ class _OtherCourseQuestionsScreenState
       } catch (_) {
         setState(() => _isSubmittingAnswer = false);
       }
-    } else if (_topicReadOnly) {
-      // Local practice evaluation if topic is read-only / completed
+    } else {
       final correctIdx = question['correctOptionIndex'] as int;
       setState(() {
         _submissions[_currentIndex] = {
@@ -273,8 +258,6 @@ class _OtherCourseQuestionsScreenState
         };
         _isSubmittingAnswer = false;
       });
-    } else {
-      setState(() => _isSubmittingAnswer = false);
     }
   }
 
@@ -602,10 +585,10 @@ class _OtherCourseQuestionsScreenState
                                   MathText(
                                     question['questionText'] as String,
                                     style: const TextStyle(
-                                      fontSize: 17,
+                                      fontSize: 18.5,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.navy,
-                                      height: 1.4,
+                                      height: 1.45,
                                     ),
                                   ),
                               ],
@@ -801,16 +784,16 @@ class _OtherCourseQuestionsScreenState
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               color: AppColors.navy,
-              fontSize: 14,
+              fontSize: 15.5,
             ),
           ),
           const SizedBox(height: 12),
           MathText(
             answer,
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 16.5,
               color: AppColors.navy,
-              height: 1.5,
+              height: 1.6,
             ),
           ),
         ],
@@ -1052,9 +1035,7 @@ class _OtherCourseQuestionsScreenState
     final label = String.fromCharCode(65 + index);
 
     return GestureDetector(
-      onTap: (answered || _isSubmittingAnswer)
-          ? null
-          : () => _selectOption(index),
+      onTap: _isSubmittingAnswer ? null : () => _selectOption(index),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
