@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
 import '../widgets/progress_ring.dart';
@@ -373,18 +374,22 @@ class OtherCourseTopicsScreen extends StatelessWidget {
                 _openSubscription(context, lockedReason);
                 return;
               }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => OtherCourseQuestionsScreen(
-                    otherCourseId: otherCourseId,
-                    otherCourseName: otherCourseName,
-                    otherCourseSubjectId: otherCourseSubjectId,
-                    otherCourseSubjectName: otherCourseSubjectName,
-                    topicId: topicId,
-                    topicName: name,
-                  ),
-                ),
+              AdHelper.showRewardedAd(
+                onComplete: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => OtherCourseQuestionsScreen(
+                        otherCourseId: otherCourseId,
+                        otherCourseName: otherCourseName,
+                        otherCourseSubjectId: otherCourseSubjectId,
+                        otherCourseSubjectName: otherCourseSubjectName,
+                        topicId: topicId,
+                        topicName: name,
+                      ),
+                    ),
+                  );
+                },
               );
             },
       child: Container(

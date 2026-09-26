@@ -19,6 +19,12 @@
         android:label="Damini Plus"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- Google Mobile Ads App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-1986575037466466~1231816416"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

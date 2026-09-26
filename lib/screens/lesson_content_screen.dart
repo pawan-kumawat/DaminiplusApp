@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
@@ -165,17 +166,21 @@ class _LessonContentScreenState extends State<LessonContentScreen> {
     );
 
     if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => QuestionsScreen(
-          subjectId: widget.subjectId,
-          subjectName: widget.subjectName,
-          topicId: widget.topicId,
-          topicName: _title,
-          languageId: widget.languageId,
-        ),
-      ),
+    AdHelper.showRewardedAd(
+      onComplete: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => QuestionsScreen(
+              subjectId: widget.subjectId,
+              subjectName: widget.subjectName,
+              topicId: widget.topicId,
+              topicName: _title,
+              languageId: widget.languageId,
+            ),
+          ),
+        );
+      },
     );
   }
 

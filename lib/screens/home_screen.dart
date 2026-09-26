@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
 import '../helper/AppSharedPreferencesData.dart';
@@ -712,18 +713,22 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LessonContentScreen(
-          topicId: resume['topicId']?.toString() ?? '',
-          topicName: resume['topicName']?.toString() ?? 'Topic',
-          subjectId: resume['subjectId']?.toString() ?? '',
-          subjectName: resume['subjectName']?.toString() ?? 'Subject',
-          languageId: '',
-        ),
-      ),
-    ).then((_) => _loadData());
+    AdHelper.showRewardedAd(
+      onComplete: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LessonContentScreen(
+              topicId: resume['topicId']?.toString() ?? '',
+              topicName: resume['topicName']?.toString() ?? 'Topic',
+              subjectId: resume['subjectId']?.toString() ?? '',
+              subjectName: resume['subjectName']?.toString() ?? 'Subject',
+              languageId: '',
+            ),
+          ),
+        ).then((_) => _loadData());
+      },
+    );
   }
 
   @override

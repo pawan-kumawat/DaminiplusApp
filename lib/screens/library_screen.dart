@@ -16,6 +16,7 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
 import '../API/API.dart';
@@ -425,11 +426,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _openPdf(String title, String url) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PdfViewerScreen(title: title, url: url),
-      ),
+    AdHelper.showRewardedAd(
+      onComplete: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PdfViewerScreen(title: title, url: url),
+          ),
+        );
+      },
     );
   }
 

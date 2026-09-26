@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
 import '../Helper/AppSharedPreferencesData.dart';
@@ -385,17 +386,21 @@ class TopicsScreen extends StatelessWidget {
                 _openSubscription(context, lockedReason);
                 return;
               }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LessonContentScreen(
-                    topicId: topicId,
-                    topicName: name,
-                    subjectId: subjectId,
-                    subjectName: subjectName,
-                    languageId: languageId,
-                  ),
-                ),
+              AdHelper.showRewardedAd(
+                onComplete: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LessonContentScreen(
+                        topicId: topicId,
+                        topicName: name,
+                        subjectId: subjectId,
+                        subjectName: subjectName,
+                        languageId: languageId,
+                      ),
+                    ),
+                  );
+                },
               );
             },
       child: Container(

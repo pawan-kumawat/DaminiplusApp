@@ -11,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
+import 'Helper/AdHelper.dart';
 import 'Helper/AppColors.dart';
 import 'Helper/AppLocalizations.dart';
 import 'Helper/LocaleProvider.dart';
@@ -78,6 +79,7 @@ void main() {
     WidgetsFlutterBinding.ensureInitialized();
     _installErrorHandlers();
     _initOneSignal();
+    await AdHelper.init();
 
     final localeProvider = LocaleProvider();
     await localeProvider.init(); // restore saved language before first frame
