@@ -52,8 +52,8 @@
      row on a phone-width screen; touch targets below are kept at the
      desktop admin's 34px, which meets the ~32px minimum comfortably. ── */
   #toolbar {
-    position: fixed;
-    inset: 0 0 auto 0;
+    position: relative;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -125,6 +125,7 @@
   /* ── Canvas area ───────────────────────────────────── */
   #canvasWrap {
     flex: 1;
+    min-height: 0;
     position: relative;
     overflow: hidden;
     background: #ffffff;
@@ -395,7 +396,7 @@
   }
 
   // Each board is one viewport-sized sheet. New sheets extend the
-  // recording workspace in the chosen direction and survive draft restore.
+  // recording workspace downward and survive draft restore.
   let boards = [{ x: 0, y: 0 }];
   let boardDirection = 'portrait';
   let boardWidth = 0;
@@ -417,6 +418,11 @@
   let micStream = null;
   let canvasStream = null;
   let recording = false;
+  let recordingStarting = false;
+  let recordingStopping = false;
+  let recordingCanvas = null;
+  let recordingCtx = null;
+  let recordingFrameHandle = null;
   let recordStartedAt = 0;
   let recordTimerHandle = null;
   let recordedBlob = null;
@@ -428,6 +434,7 @@
   function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     const rect = wrap.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     if (!boardWidth || !boardHeight) { boardWidth = rect.width; boardHeight = rect.height; }
     canvas.width = Math.round(rect.width * dpr);
     canvas.height = Math.round(rect.height * dpr);
@@ -436,6 +443,9 @@
     redraw();
   }
   window.addEventListener('resize', resizeCanvas);
+  // Tool rows and question content can resize the board without a window resize.
+  const boardResizeObserver = new ResizeObserver(resizeCanvas);
+  boardResizeObserver.observe(wrap);
 
   function screenToWorld(sx, sy) {
     return { x: (sx - view.x) / view.scale, y: (sy - view.y) / view.scale };
@@ -520,6 +530,12 @@
     for (const s of strokes) drawStroke(ctx, s);
     if (currentStroke) drawStroke(ctx, currentStroke);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Erasing removes ink, but recorded frames must remain opaque white.
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = 'source-over';
+    copyRecordingFrame();
   }
 
   // ── History (undo/redo) ─────────────────────────────────────
@@ -824,6 +840,62 @@
   });
 
   // ── Recording ────────────────────────────────────────────────
+  // Keep the encoder dimensions fixed for the entire recording. Capture the
+  // already-rendered viewport so pan/zoom/DPR are applied exactly once.
+  function copyRecordingFrame() {
+    if (!recordingCtx || !canvas.width || !canvas.height) return;
+    const width = recordingCanvas.width;
+    const height = recordingCanvas.height;
+    const scale = Math.min(width / canvas.width, height / canvas.height);
+    const drawWidth = canvas.width * scale;
+    const drawHeight = canvas.height * scale;
+    recordingCtx.fillStyle = '#ffffff';
+    recordingCtx.fillRect(0, 0, width, height);
+    // Contain the full visible board after rotation; never crop or stretch it.
+    recordingCtx.drawImage(canvas, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+  }
+
+  function createRecordingStream() {
+    resizeCanvas();
+    recordingCanvas = document.createElement('canvas');
+    const scale = Math.min(1, 1920 / Math.max(canvas.width, canvas.height));
+    recordingCanvas.width = Math.max(2, Math.round(canvas.width * scale / 2) * 2);
+    recordingCanvas.height = Math.max(2, Math.round(canvas.height * scale / 2) * 2);
+    recordingCtx = recordingCanvas.getContext('2d', { alpha: false });
+    copyRecordingFrame();
+    return recordingCanvas.captureStream(30);
+  }
+
+  function captureRecordingFrames() {
+    let lastFrame = 0;
+    function tick(now) {
+      if (!recording) return;
+      if (now - lastFrame >= 1000 / 30) {
+        copyRecordingFrame();
+        lastFrame = now;
+      }
+      recordingFrameHandle = requestAnimationFrame(tick);
+    }
+    recordingFrameHandle = requestAnimationFrame(tick);
+  }
+
+  function releaseRecordingResources() {
+    cancelAnimationFrame(recordingFrameHandle);
+    recordingFrameHandle = null;
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (canvasStream) canvasStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+    canvasStream = null;
+    recordingCtx = null;
+    recordingCanvas = null;
+    clearInterval(recordTimerHandle);
+    recording = false;
+    recordingStarting = false;
+    recordingStopping = false;
+    updateRecordUI();
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+  }
+
   function pickMimeType() {
     const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
     for (const c of candidates) {
@@ -836,6 +908,7 @@
     const btn = document.getElementById('recordBtn');
     const label = document.getElementById('recordLabel');
     const timer = document.getElementById('recTimer');
+    btn.disabled = recordingStarting || recordingStopping;
     btn.classList.toggle('recording', recording);
     btn.classList.toggle('idle', !recording);
     label.textContent = recording ? 'Stop Recording' : 'Start Recording';
@@ -855,50 +928,60 @@
   }
 
   async function startRecording() {
+    if (recording || recordingStarting || recordingStopping) return;
+    recordingStarting = true;
+    updateRecordUI();
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
+      releaseRecordingResources();
       alert('Microphone access is required to record the explanation. Please allow microphone permission and try again.');
       return;
     }
-    canvasStream = canvas.captureStream(30);
-    const combined = new MediaStream([...canvasStream.getVideoTracks(), ...micStream.getAudioTracks()]);
-    const mimeType = pickMimeType();
-    recordedChunks = [];
     try {
+      canvasStream = createRecordingStream();
+      const combined = new MediaStream([...canvasStream.getVideoTracks(), ...micStream.getAudioTracks()]);
+      const mimeType = pickMimeType();
+      recordedChunks = [];
       mediaRecorder = mimeType ? new MediaRecorder(combined, { mimeType }) : new MediaRecorder(combined);
+      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = onRecordingStopped;
+      mediaRecorder.onerror = () => {
+        mediaRecorder.onstop = null;
+        if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        releaseRecordingResources();
+        alert('Recording failed. Please start a new recording.');
+      };
+      // Keep one continuous WebM timeline for Android WebView playback.
+      mediaRecorder.start();
+      recording = true;
+      recordingStarting = false;
+      recordStartedAt = Date.now();
+      captureRecordingFrames();
+      copyRecordingFrame();
+      updateRecordUI();
+      updateTimerDisplay();
+      recordTimerHandle = setInterval(updateTimerDisplay, 500);
+      window.addEventListener('beforeunload', beforeUnloadHandler);
     } catch (err) {
-      alert('Recording is not supported here. Please update your device/app and try again.');
-      micStream.getTracks().forEach(t => t.stop());
-      return;
+      releaseRecordingResources();
+      alert('Recording is not supported here. Please update your device/browser and try again.');
     }
-    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = onRecordingStopped;
-    // A timeslice creates many independent WebM clusters. Android WebView can
-    // assign a fresh timestamp base to each cluster, which inflates a short
-    // recording when the chunks are joined. Emit one continuous WebM instead.
-    mediaRecorder.start();
-    recording = true;
-    recordStartedAt = Date.now();
-    updateRecordUI();
-    updateTimerDisplay();
-    recordTimerHandle = setInterval(updateTimerDisplay, 500);
-    window.addEventListener('beforeunload', beforeUnloadHandler);
   }
 
   function stopRecording() {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-    mediaRecorder.stop();
-    if (micStream) micStream.getTracks().forEach(t => t.stop());
-    if (canvasStream) canvasStream.getTracks().forEach(t => t.stop());
-    clearInterval(recordTimerHandle);
-    recording = false;
+    if (!mediaRecorder || mediaRecorder.state === 'inactive' || recordingStopping) return;
+    recordingStopping = true;
     updateRecordUI();
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    copyRecordingFrame();
+    mediaRecorder.stop();
+    // Keep tracks alive until the encoder has flushed its final data/onstop.
   }
 
   function onRecordingStopped() {
-    recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+    releaseRecordingResources();
+    recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
+    if (recordedBlobUrl) URL.revokeObjectURL(recordedBlobUrl);
     recordedBlobUrl = URL.createObjectURL(recordedBlob);
     const video = document.getElementById('previewVideo');
     video.src = recordedBlobUrl;

@@ -73,6 +73,7 @@ const Map<String, String> _commonHindi = {
   'Board': 'बोर्ड',
   'Solution': 'समाधान',
   'Answer': 'उत्तर',
+  'Unable to load answer image': 'उत्तर की इमेज लोड नहीं हो सकी',
   'Choose the correct answer': 'सही उत्तर चुनें',
   'Question': 'प्रश्न',
   'Questions': 'प्रश्न',

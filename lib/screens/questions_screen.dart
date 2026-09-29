@@ -6,6 +6,7 @@ import '../helper/AppSharedPreferencesData.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
 import '../widgets/math_text.dart';
+import '../widgets/theory_answer_panel.dart';
 import 'explanation_solution_screen.dart';
 import 'rough_work_solve_screen.dart';
 import 'teacher_record_screen.dart';
@@ -166,6 +167,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
             'note': _pick(m, ['note', 'instruction', 'hint'])?.toString() ?? '',
             'questionType': m['questionType']?.toString() ?? 'mcq',
             'answerText': m['answerText']?.toString() ?? '',
+            'answerImageUrl': m['answerImageUrl']?.toString() ?? '',
             'options': options,
             'correctOptionIndex':
                 int.tryParse(m['correctOptionIndex']?.toString() ?? '') ?? 0,
@@ -653,7 +655,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
 
                     // ── MCQ options or the theory reading answer ──
                     question['questionType'] == 'theory'
-                        ? _buildTheoryAnswerPanel(submission)
+                        ? _buildTheoryAnswerPanel()
                         : _buildOptionsPanel(
                             options,
                             optionImageUrls,
@@ -883,39 +885,12 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     );
   }
 
-  Widget _buildTheoryAnswerPanel(Map<String, dynamic>? submission) {
+  Widget _buildTheoryAnswerPanel() {
     final question = _questions[_currentIndex];
-    final answer = (question['answerText'] ?? '').toString();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppLocalizations.of(context).text('Answer'),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.navy,
-              fontSize: 15.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          MathText(
-            answer,
-            style: const TextStyle(
-              fontSize: 16.5,
-              color: AppColors.navy,
-              height: 1.6,
-            ),
-          ),
-        ],
-      ),
+    return TheoryAnswerPanel(
+      answerText: (question['answerText'] ?? '').toString(),
+      answerImageUrl: (question['answerImageUrl'] ?? '').toString(),
+      videoSolutionUrl: (question['explanationVideoUrl'] ?? '').toString(),
     );
   }
 
