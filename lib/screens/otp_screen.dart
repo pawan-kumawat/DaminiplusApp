@@ -8,6 +8,7 @@ import '../Helper/AppLocalizations.dart';
 import '../Helper/AppSharedPreferencesData.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
+import 'edit_profile_screen.dart';
 import 'main_screen.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -176,6 +177,27 @@ class _OtpScreenState extends State<OtpScreen> {
     }
 
     if (!mounted) return;
+
+    final phone = user['phone']?.toString() ?? '';
+    final profileComplete = user['profileComplete'] == true ||
+        (name.trim().isNotEmpty && name.trim().toLowerCase() != 'student' &&
+            RegExp(r'^\d{10}$').hasMatch(phone.trim()));
+    if (!profileComplete) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EditProfileScreen(
+            name: name.trim().toLowerCase() == 'student' ? '' : name,
+            phone: phone,
+            address: user['address']?.toString() ?? '',
+            photoUrl: user['photoUrl']?.toString(),
+            requiredCompletion: true,
+          ),
+        ),
+        (route) => false,
+      );
+      return;
+    }
 
     // OTP verify hote hi seedha Home — board/language/class abhi select
     // karwana zaroori nahi. HomeScreen aur CoursesScreen already saare

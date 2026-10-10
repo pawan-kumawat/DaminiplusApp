@@ -137,7 +137,7 @@ class _OtherCoursesListScreenState extends State<OtherCoursesListScreen> {
                     _buildSearchField(),
                     const SizedBox(height: 14),
                     _buildChips(),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 30),
                     if (_courses.isEmpty)
                       const Padding(
                         padding: EdgeInsets.only(top: 40),
@@ -290,17 +290,12 @@ class _CourseCard extends StatelessWidget {
     final fullName = course['fullName']?.toString() ?? '';
     final imageUrl = course['imageUrl']?.toString() ?? '';
     final stats = course['stats'] as Map<String, dynamic>? ?? {};
-    final logo = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?';
+    final hasImage = imageUrl.trim().isNotEmpty;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 5))],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -312,27 +307,19 @@ class _CourseCard extends StatelessWidget {
                 // icons — a square BoxFit.cover box cropped most of the
                 // poster away. Portrait box + BoxFit.contain always shows
                 // the whole cover, whatever aspect ratio gets uploaded.
-                Container(
-                  width: 56,
-                  height: 74,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: AppColors.backgroundColor,
-                    borderRadius: BorderRadius.circular(16),
+                if (hasImage) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      imageUrl,
+                      width: 56,
+                      height: 74,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
                   ),
-                  child: imageUrl.isNotEmpty
-                      ? Image.network(
-                          imageUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Center(
-                            child: Text(logo, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.navy)),
-                          ),
-                        )
-                      : Center(
-                          child: Text(logo, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.navy)),
-                        ),
-                ),
-                const SizedBox(width: 14),
+                  const SizedBox(width: 14),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -11,6 +11,7 @@ import '../Helper/AppSharedPreferencesData.dart';
 import 'onboarding_screen.dart';
 import 'login_screen.dart';
 import 'main_screen.dart';
+import 'edit_profile_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -93,6 +94,43 @@ class _SplashScreenState extends State<SplashScreen> {
     final mongoId = await AppSharedPreferencesData.getMongoId();
     if (mongoId.isNotEmpty) {
       OneSignal.login(mongoId);
+    }
+
+    // Revalidate the saved session and get the latest admin-controlled
+    // role/profile state before opening the app.
+    final profileResponse = await APIService.getApiCaller(
+      context: context,
+      url: ApiUrls.getProfile,
+      showLoader: false,
+    );
+    if (!mounted) return;
+    if (!await AppSharedPreferencesData.getIsLogin()) return;
+
+    if (profileResponse != 'Error') {
+      try {
+        final profile = jsonDecode(profileResponse)['data'] as Map<String, dynamic>;
+        await AppSharedPreferencesData.saveRole(profile['role']?.toString() ?? 'student');
+        final phone = profile['phone']?.toString() ?? '';
+        final name = profile['name']?.toString() ?? '';
+        final profileComplete = profile['profileComplete'] == true ||
+            (name.trim().isNotEmpty && name.trim().toLowerCase() != 'student' &&
+                RegExp(r'^\d{10}$').hasMatch(phone.trim()));
+        if (!profileComplete) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EditProfileScreen(
+                name: name.trim().toLowerCase() == 'student' ? '' : name,
+                phone: phone,
+                address: profile['address']?.toString() ?? '',
+                photoUrl: profile['photoUrl']?.toString(),
+                requiredCompletion: true,
+              ),
+            ),
+          );
+          return;
+        }
+      } catch (_) {}
     }
 
     // Login ho chuka hai — seedha Home (teacher ho ya student, dono

@@ -400,7 +400,7 @@ class _ChaptersScreenState extends State<ChaptersScreen> {
                                   );
                                   return;
                                 }
-                                Navigator.push(
+                                Navigator.push<bool>(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => TopicsScreen(
@@ -413,7 +413,9 @@ class _ChaptersScreenState extends State<ChaptersScreen> {
                                       topics: topicsHere,
                                     ),
                                   ),
-                                );
+                                ).then((_) {
+                                  if (mounted) _fetchData();
+                                });
                               },
                             ),
                           );

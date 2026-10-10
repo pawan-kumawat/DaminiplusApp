@@ -17,6 +17,7 @@ class QuestionsScreen extends StatefulWidget {
   final String topicId;
   final String topicName;
   final String languageId;
+  final bool openedFromTopicList;
 
   const QuestionsScreen({
     super.key,
@@ -25,6 +26,7 @@ class QuestionsScreen extends StatefulWidget {
     required this.topicId,
     required this.topicName,
     required this.languageId,
+    this.openedFromTopicList = false,
   });
 
   @override
@@ -392,8 +394,12 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context, true);
+                    if (widget.openedFromTopicList) {
+                      Navigator.pop(context, true);
+                    } else {
+                      Navigator.pop(context);
+                      Navigator.pop(context, true);
+                    }
                   },
                   child: const Text(
                     'Done',

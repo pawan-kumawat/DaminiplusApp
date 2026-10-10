@@ -158,6 +158,7 @@ class _StudyMaterialDetailScreenState
 
   void _openPdf(String title, String url) {
     AdHelper.showRewardedAd(
+      context: context,
       onComplete: () {
         Navigator.push(
           context,

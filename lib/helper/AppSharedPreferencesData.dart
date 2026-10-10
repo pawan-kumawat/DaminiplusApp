@@ -158,6 +158,11 @@ class AppSharedPreferencesData {
     await prefs.setString(_kRole, role);
   }
 
+  static Future<void> saveUserName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUserName, name);
+  }
+
   // ── Getters ───────────────────────────────────────────────
   static Future<String> getToken()          async => (await _p()).getString(_kToken)          ?? '';
   static Future<String> getUserId()         async => (await _p()).getString(_kUserId)         ?? '';

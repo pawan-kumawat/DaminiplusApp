@@ -714,6 +714,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (!mounted) return;
     AdHelper.showRewardedAd(
+      context: context,
       onComplete: () {
         Navigator.push(
           context,

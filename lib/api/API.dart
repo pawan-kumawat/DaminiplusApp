@@ -47,6 +47,30 @@ class APIService {
     return response;
   }
 
+  // Quiet auth heartbeat for foreground session checks. Network failures
+  // are ignored, while a server-side revocation still clears the session.
+  static Future<String> validateSession({
+    required BuildContext context,
+    required String url,
+  }) async {
+    try {
+      final response = await rawGet(url, await _headers());
+      if (response.statusCode == 401) {
+        var message = 'Your session has been disabled. Please log in again.';
+        try {
+          message = jsonDecode(response.body)['message']?.toString() ?? message;
+        } catch (_) {}
+        await _forceLogout(context, message);
+        return 'Error';
+      }
+      if (response.statusCode != 200) return 'Error';
+      final json = jsonDecode(response.body);
+      return json['status'] == true ? response.body : 'Error';
+    } catch (_) {
+      return 'Error';
+    }
+  }
+
   // ── GET ────────────────────────────────────────────────
   static Future<String> getApiCaller({
     required BuildContext context,

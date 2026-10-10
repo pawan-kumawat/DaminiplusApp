@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../Helper/AppColors.dart';
+import '../Helper/AppSharedPreferencesData.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
+import 'main_screen.dart';
 
 /// Name, mobile number, address and photo are editable — email is the
 /// account's login identity and can't be changed from the app. Name
@@ -15,6 +17,7 @@ class EditProfileScreen extends StatefulWidget {
   final String phone;
   final String address;
   final String? photoUrl;
+  final bool requiredCompletion;
 
   const EditProfileScreen({
     super.key,
@@ -22,6 +25,7 @@ class EditProfileScreen extends StatefulWidget {
     required this.phone,
     required this.address,
     this.photoUrl,
+    this.requiredCompletion = false,
   });
 
   @override
@@ -69,12 +73,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mobile number is required')));
       return;
     }
-    if (phone.length != 10) {
+    if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid 10-digit mobile number')));
       return;
     }
 
     setState(() => _isSaving = true);
+
+    // Save required identity fields before uploading a photo. The API blocks
+    // photo uploads until the profile has a valid name and mobile number.
+    final response = await APIService.putApiCaller(
+      context: context,
+      url: ApiUrls.updateProfile,
+      body: {"name": name, "phone": phone, "address": _addressController.text.trim()},
+    );
+
+    if (!mounted) return;
+    if (response == "Error") {
+      setState(() => _isSaving = false);
+      return;
+    }
 
     if (_pickedPhoto != null) {
       final photoRes = await APIService.uploadFile(
@@ -83,35 +101,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         imageFile: _pickedPhoto!,
         fieldName: 'photo',
       );
-      if (photoRes == "Error" || !mounted) {
+      if (!mounted) return;
+      if (photoRes == "Error") {
         setState(() => _isSaving = false);
         return;
       }
     }
 
-    final response = await APIService.putApiCaller(
-      context: context,
-      url: ApiUrls.updateProfile,
-      body: {"name": name, "phone": phone, "address": _addressController.text.trim()},
-    );
-
-    if (!mounted) return;
     setState(() => _isSaving = false);
-    if (response == "Error") return;
 
-    Navigator.pop(context, true);
+    await AppSharedPreferencesData.saveUserName(name);
+    if (widget.requiredCompletion) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
+    } else {
+      Navigator.pop(context, true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !widget.requiredCompletion,
+      child: Scaffold(
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Edit Profile', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 17)),
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppColors.navy), onPressed: () => Navigator.pop(context)),
+        title: Text(widget.requiredCompletion ? 'Complete your profile' : 'Edit Profile', style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 17)),
+        automaticallyImplyLeading: false,
+        leading: widget.requiredCompletion
+            ? const SizedBox.shrink()
+            : IconButton(icon: const Icon(Icons.arrow_back, color: AppColors.navy), onPressed: () => Navigator.pop(context)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -120,6 +145,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 12),
+              if (widget.requiredCompletion) ...[
+                const Text('Add your name and mobile number to continue.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                const SizedBox(height: 20),
+              ],
               Center(
                 child: GestureDetector(
                   onTap: _pickPhoto,
@@ -246,13 +275,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   child: _isSaving
                       ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : const Text('Save Changes', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      : Text(widget.requiredCompletion ? 'Continue' : 'Save Changes', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
       ),
     );
   }

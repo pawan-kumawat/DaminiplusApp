@@ -76,7 +76,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     {
       'label': 'Books',
       'type': 'book',
-      'kinds': {'board'},
+      // Show book resources from boards, exams, and other courses. The
+      // separate Competitive Exam tile remains available as a focused view.
+      'kinds': null,
       'icon': Icons.auto_stories_rounded,
       'color': Color(0xFF3757C9),
     },
@@ -427,6 +429,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   void _openPdf(String title, String url) {
     AdHelper.showRewardedAd(
+      context: context,
       onComplete: () {
         Navigator.push(
           context,

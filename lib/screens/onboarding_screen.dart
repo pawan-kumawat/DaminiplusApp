@@ -20,7 +20,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // and declare in pubspec.yaml under flutter > assets
   static const List<String> _images = [
     'assets/image/-1 final.png',
-    'assets/image/-2 final.png',
     'assets/image/-4 final.png',
   ];
 

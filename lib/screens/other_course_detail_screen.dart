@@ -191,37 +191,12 @@ class _OtherCourseDetailScreenState extends State<OtherCourseDetailScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Stack(
+    final imageUrl = _imageUrl.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Course covers are tall posters with title/branding printed on
-        // them, not landscape banners — BoxFit.cover here used to crop
-        // most of a portrait poster away. BoxFit.contain always shows
-        // the whole cover, letterboxed on the tinted background if its
-        // ratio doesn't match this banner's shape.
-        Container(
-          width: double.infinity,
-          height: 220,
-          decoration: BoxDecoration(
-            color: AppColors.primaryBlue.withValues(alpha: 0.08),
-            borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(28), bottomRight: Radius.circular(28)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: _imageUrl.isNotEmpty
-              ? Image.network(
-                  _imageUrl,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  errorBuilder: (_, __, ___) => Center(
-                    child: Icon(Icons.school_rounded, size: 64, color: AppColors.primaryBlue.withValues(alpha: 0.4)),
-                  ),
-                )
-              : Center(
-                  child: Icon(Icons.school_rounded, size: 64, color: AppColors.primaryBlue.withValues(alpha: 0.4)),
-                ),
-        ),
-        Positioned(
-          top: 8,
-          left: 8,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
           child: Container(
             decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
             child: IconButton(
@@ -230,6 +205,16 @@ class _OtherCourseDetailScreenState extends State<OtherCourseDetailScreen> {
             ),
           ),
         ),
+        if (imageUrl.isNotEmpty)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220),
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
       ],
     );
   }

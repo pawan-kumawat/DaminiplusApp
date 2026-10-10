@@ -22,17 +22,38 @@ class _ExplanationVideoPlayerState extends State<ExplanationVideoPlayer> {
     _init();
   }
 
+  @override
+  void didUpdateWidget(covariant ExplanationVideoPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      final previousController = _controller;
+      _controller = null;
+      previousController?.dispose();
+      _init();
+    }
+  }
+
   Future<void> _init({int attempt = 1}) async {
     if (mounted) setState(() => _failed = false);
-    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    final rawUrl = widget.url.trim();
+    if (rawUrl.isEmpty) {
+      if (mounted) setState(() => _failed = true);
+      return;
+    }
+    final parsedUrl = Uri.tryParse(rawUrl);
+    final url = parsedUrl != null && parsedUrl.hasScheme
+        ? parsedUrl
+        : Uri.parse('https://www.daminiplus.com$rawUrl');
+    final controller = VideoPlayerController.networkUrl(url);
     try {
-      await controller.initialize();
+      await controller.initialize().timeout(const Duration(seconds: 25));
       if (!mounted) {
         controller.dispose();
         return;
       }
       setState(() => _controller = controller);
-    } catch (_) {
+      } catch (error) {
+      debugPrint('Explanation video failed to initialize ($url): $error');
       controller.dispose();
       if (!mounted) return;
       // Mobile networks hiccup often enough that a single failed load
@@ -79,7 +100,7 @@ class _ExplanationVideoPlayerState extends State<ExplanationVideoPlayer> {
               ),
               SizedBox(height: 6),
               Text(
-                'Could not load explanation video — tap to retry',
+                'Unable to load this video. Check your connection and tap to retry.',
                 style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12.5,
@@ -124,7 +145,7 @@ class _ExplanationVideoPlayerState extends State<ExplanationVideoPlayer> {
       height: 160,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.06),
+      color: Colors.black.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
       ),
       child: child,

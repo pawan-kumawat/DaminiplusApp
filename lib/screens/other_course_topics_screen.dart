@@ -375,6 +375,7 @@ class OtherCourseTopicsScreen extends StatelessWidget {
                 return;
               }
               AdHelper.showRewardedAd(
+                context: context,
                 onComplete: () {
                   Navigator.push(
                     context,

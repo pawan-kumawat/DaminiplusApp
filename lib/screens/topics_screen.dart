@@ -3,15 +3,18 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
 import '../Helper/AppSharedPreferencesData.dart';
+import '../API/API.dart';
+import '../API/ApiUrls.dart';
 import '../widgets/progress_ring.dart';
-import 'lesson_content_screen.dart';
+import 'questions_screen.dart';
 import 'subscription_screen.dart';
 
-class TopicsScreen extends StatelessWidget {
+class TopicsScreen extends StatefulWidget {
   final String subjectId;
   final String subjectName;
   final String languageId;
@@ -31,12 +34,78 @@ class TopicsScreen extends StatelessWidget {
     required this.topics,
   });
 
-  int _completedQuestions() => topics.fold<int>(
+  @override
+  State<TopicsScreen> createState() => _TopicsScreenState();
+}
+
+class _TopicsScreenState extends State<TopicsScreen> {
+  late List<Map<String, dynamic>> _topics;
+
+  @override
+  void initState() {
+    super.initState();
+    _topics = widget.topics
+        .map((topic) => Map<String, dynamic>.from(topic))
+        .toList();
+  }
+
+  String _idOf(dynamic value) {
+    if (value is Map) return value['_id']?.toString() ?? '';
+    return value?.toString() ?? '';
+  }
+
+  int _toInt(dynamic value) =>
+      value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;
+
+  Future<void> _refreshProgress() async {
+    final response = await APIService.getApiCaller(
+      context: context,
+      url: ApiUrls.getTopics(widget.subjectId, widget.languageId),
+      showLoader: false,
+    );
+    if (response == 'Error' || !mounted) return;
+
+    try {
+      final data = jsonDecode(response)['data'] as List<dynamic>? ?? [];
+      final refreshed = data
+          .where((item) => _idOf(item['chapterId']) == widget.chapterId)
+          .map<Map<String, dynamic>>((item) {
+            final topic = Map<String, dynamic>.from(item as Map);
+            final progress = topic['progress'] is Map
+                ? topic['progress'] as Map
+                : const <String, dynamic>{};
+            topic['completedQuestions'] = _toInt(
+              progress['completedQuestions'] ?? topic['completedQuestions'],
+            );
+            topic['totalQuestions'] = _toInt(
+              progress['totalQuestions'] ?? topic['totalQuestions'],
+            );
+            topic['isLocked'] =
+                topic['isLocked'] == true ||
+                (topic['access'] is Map && topic['access']['isLocked'] == true);
+            topic['lockedReason'] =
+                topic['lockedReason']?.toString() ??
+                (topic['access'] is Map
+                    ? topic['access']['lockedReason']?.toString() ?? ''
+                    : '');
+            return topic;
+          })
+          .toList();
+
+      if (mounted && refreshed.isNotEmpty) {
+        setState(() => _topics = refreshed);
+      }
+    } catch (_) {}
+  }
+
+  int _completedQuestions() => _topics.fold<int>(
     0,
     (sum, t) => sum + (t['completedQuestions'] as int? ?? 0),
   );
-  int _totalQuestions() =>
-      topics.fold<int>(0, (sum, t) => sum + (t['totalQuestions'] as int? ?? 0));
+  int _totalQuestions() => _topics.fold<int>(
+    0,
+    (sum, t) => sum + (t['totalQuestions'] as int? ?? 0),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +113,7 @@ class TopicsScreen extends StatelessWidget {
     final completed = _completedQuestions();
     final total = _totalQuestions();
     final overallPct = total > 0 ? (completed / total) * 100 : 0.0;
-    final completedTopics = topics.where((tp) {
+    final completedTopics = _topics.where((tp) {
       final tc = tp['completedQuestions'] as int? ?? 0;
       final tt = tp['totalQuestions'] as int? ?? 0;
       return tt > 0 && tc >= tt;
@@ -65,13 +134,13 @@ class TopicsScreen extends StatelessWidget {
             ),
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: AppColors.navy),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, true),
             ),
           ),
         ),
       ),
       body: SafeArea(
-        child: topics.isEmpty
+        child: _topics.isEmpty
             ? Center(
                 child: Text(
                   t.noLessons,
@@ -110,7 +179,7 @@ class TopicsScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                '$chapterIndex',
+                                '${widget.chapterIndex}',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -121,7 +190,7 @@ class TopicsScreen extends StatelessWidget {
                             const SizedBox(width: 14),
                             Expanded(
                               child: Text(
-                                chapterName,
+                                widget.chapterName,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -195,8 +264,8 @@ class TopicsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...List.generate(topics.length, (i) {
-                    final tp = topics[i];
+                  ...List.generate(_topics.length, (i) {
+                    final tp = _topics[i];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _buildTopicCard(
@@ -272,7 +341,7 @@ class TopicsScreen extends StatelessWidget {
 
                   // ── Chapter summary ───────────────────────
                   Text(
-                    '$chapterName Summary',
+                    '${widget.chapterName} Summary',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -287,7 +356,7 @@ class TopicsScreen extends StatelessWidget {
                           context: context,
                           icon: Icons.menu_book_rounded,
                           label: 'Topics',
-                          value: '${topics.length}',
+                          value: '${_topics.length}',
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -387,19 +456,23 @@ class TopicsScreen extends StatelessWidget {
                 return;
               }
               AdHelper.showRewardedAd(
+                context: context,
                 onComplete: () {
-                  Navigator.push(
+                  Navigator.push<bool>(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => LessonContentScreen(
+                      builder: (_) => QuestionsScreen(
                         topicId: topicId,
                         topicName: name,
-                        subjectId: subjectId,
-                        subjectName: subjectName,
-                        languageId: languageId,
+                        subjectId: widget.subjectId,
+                        subjectName: widget.subjectName,
+                        languageId: widget.languageId,
+                        openedFromTopicList: true,
                       ),
                     ),
-                  );
+                  ).then((completed) {
+                    if (completed == true) _refreshProgress();
+                  });
                 },
               );
             },
@@ -431,7 +504,7 @@ class TopicsScreen extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  '$chapterIndex.$index',
+                  '${widget.chapterIndex}.$index',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,

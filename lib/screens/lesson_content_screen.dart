@@ -167,8 +167,9 @@ class _LessonContentScreenState extends State<LessonContentScreen> {
 
     if (!mounted) return;
     AdHelper.showRewardedAd(
+      context: context,
       onComplete: () {
-        Navigator.push(
+        Navigator.push<bool>(
           context,
           MaterialPageRoute(
             builder: (_) => QuestionsScreen(
@@ -179,7 +180,10 @@ class _LessonContentScreenState extends State<LessonContentScreen> {
               languageId: widget.languageId,
             ),
           ),
-        );
+        ).then((completed) {
+          if (completed != true || !mounted) return;
+          Navigator.pop(context, true);
+        });
       },
     );
   }

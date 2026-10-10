@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
-    show DeviceOrientation, SystemChrome, rootBundle;
+    show DeviceOrientation, SystemChrome;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../API/ApiUrls.dart';
 import '../Helper/AppSharedPreferencesData.dart';
 
-/// Opens frontend/teacher-record.html (same canvas/record/preview/upload
-/// tool the admin panel uses, adapted for a WebView — see that file for
-/// the full mechanics) against one question+language. Pops the saved
+/// Opens the admin panel's Tldraw whiteboard editor in a WebView against
+/// one question+language. Pops the saved
 /// video's URL once recording completes so the caller can update that
 /// question's local state directly (button disappears without a
 /// refetch); pops null if closed without saving.
@@ -78,24 +77,21 @@ class _TeacherRecordScreenState extends State<TeacherRecordScreen> {
       return;
     }
 
-    // The Digital Board ships inside the app. Inject only this recording's
-    // API/auth context before loading it, so board behavior does not depend
-    // on a separately deployed admin HTML page.
-    final origin = ApiUrls.baseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '');
-    var boardHtml = await rootBundle.loadString(
-      'assets/html/teacher-record.html',
+    // Open the admin panel's exact whiteboard-dist page. Keep the bearer
+    // token in the fragment so it is not sent in the HTTP request.
+    final baseUri = Uri.parse(ApiUrls.baseUrl);
+    final origin = baseUri.replace(path: '', query: null, fragment: null);
+    final recorderUri = origin.replace(
+      path: '/admin/whiteboard-dist/index.html',
+      queryParameters: {
+        'lang': widget.languageId,
+        'mobile': '1',
+        'questionId': widget.questionId,
+        'question': widget.questionTitle,
+        'pillar': widget.pillar,
+      },
+      fragment: Uri(queryParameters: {'token': token}).query,
     );
-    boardHtml = boardHtml
-        .replaceFirst('__API_BASE__', jsonEncode(ApiUrls.baseUrl))
-        .replaceFirst('__TOKEN__', jsonEncode(token))
-        .replaceFirst('__QUESTION_ID__', jsonEncode(widget.questionId))
-        .replaceFirst('__LANGUAGE_ID__', jsonEncode(widget.languageId))
-        .replaceFirst('__PILLAR__', jsonEncode(widget.pillar))
-        .replaceFirst('__QUESTION_TITLE__', jsonEncode(widget.questionTitle))
-        .replaceFirst(
-          '__QUESTION_IMAGE_URL__',
-          jsonEncode(widget.questionImageUrl),
-        );
 
     final controller =
         WebViewController(
@@ -127,7 +123,7 @@ class _TeacherRecordScreenState extends State<TeacherRecordScreen> {
             ),
           );
 
-    await controller.loadHtmlString(boardHtml, baseUrl: origin);
+    await controller.loadRequest(recorderUri);
     if (!mounted) return;
     setState(() => _controller = controller);
   }
@@ -155,16 +151,15 @@ class _TeacherRecordScreenState extends State<TeacherRecordScreen> {
     }
   }
 
-  // System back defers to the page's own Close button — it already
-  // handles "recording in progress" / "unsaved draft" confirmations
-  // before it ever tells Flutter to pop (see teacher-record.html).
+  // System back defers to the whiteboard's own Close button so its recording
+  // and unsaved-draft confirmations run before Flutter closes the WebView.
   Future<void> _requestClose() async {
     if (_controller == null) {
       await _closeWithResult(null);
       return;
     }
     await _controller!.runJavaScript(
-      "document.getElementById('closeBtn') && document.getElementById('closeBtn').click();",
+      "document.querySelector('button.close') && document.querySelector('button.close').click();",
     );
   }
 

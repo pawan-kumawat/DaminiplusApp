@@ -1,8 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../API/API.dart';
+import '../API/ApiUrls.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppAlert.dart';
 import '../Helper/AppLocalizations.dart';
+import '../Helper/AppSharedPreferencesData.dart';
+import 'edit_profile_screen.dart';
 import 'home_screen.dart';
 import 'other_courses_list_screen.dart';
 import 'profile_screen.dart';
@@ -16,8 +22,68 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  Timer? _sessionTimer;
+  bool _sessionCheckRunning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshSession());
+    _sessionTimer = Timer.periodic(const Duration(seconds: 45), (_) => _refreshSession());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _sessionTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshSession();
+  }
+
+  Future<void> _refreshSession() async {
+    if (!mounted || _sessionCheckRunning || !await AppSharedPreferencesData.getIsLogin()) return;
+    _sessionCheckRunning = true;
+    try {
+      final response = await APIService.validateSession(
+        context: context,
+        url: ApiUrls.getProfile,
+      );
+      if (!mounted || response == 'Error') return;
+      final profile = jsonDecode(response)['data'] as Map<String, dynamic>;
+      await AppSharedPreferencesData.saveRole(profile['role']?.toString() ?? 'student');
+      final name = profile['name']?.toString() ?? '';
+      final phone = profile['phone']?.toString() ?? '';
+      final complete = profile['profileComplete'] == true ||
+          (name.trim().isNotEmpty && name.trim().toLowerCase() != 'student' &&
+              RegExp(r'^\d{10}$').hasMatch(phone.trim()));
+      if (!complete && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EditProfileScreen(
+              name: name.trim().toLowerCase() == 'student' ? '' : name,
+              phone: phone,
+              address: profile['address']?.toString() ?? '',
+              photoUrl: profile['photoUrl']?.toString(),
+              requiredCompletion: true,
+            ),
+          ),
+          (route) => false,
+        );
+      }
+    } catch (_) {
+      // A temporary connection problem shouldn't discard a valid local session.
+    } finally {
+      _sessionCheckRunning = false;
+    }
+  }
 
   void _switchTab(int index) {
     if (index == _selectedIndex) return;
