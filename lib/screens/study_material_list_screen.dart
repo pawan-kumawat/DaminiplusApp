@@ -13,6 +13,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../Helper/AppColors.dart';
+import '../helper/TabletHelper.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
 import '../widgets/book_cover.dart';
@@ -563,8 +564,8 @@ class _StudyMaterialListScreenState extends State<StudyMaterialListScreen> {
                     : GridView.builder(
                   padding: const EdgeInsets.only(bottom: 24),
                   gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
+                  SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: TabletHelper.getGridCount(context, mobile: 3, tablet: 5),
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 18,
                     childAspectRatio: 0.56,

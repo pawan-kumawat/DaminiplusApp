@@ -55,6 +55,7 @@ class ApiUrls {
       "$baseUrl/app/classes?boardId=$boardId&availablePlans=true";
 
   // ── Learning Content ──────────────────────────────────
+  static const String getHomeData = "$baseUrl/app/home";
   static const String getDashboard = "$baseUrl/app/dashboard";
   static const String getRecentCourses = "$baseUrl/app/recent-courses";
   static const String getHomeSliders = "$baseUrl/app/home-sliders";

@@ -35,6 +35,7 @@ class QuestionsScreen extends StatefulWidget {
 
 class _QuestionsScreenState extends State<QuestionsScreen> {
   final List<Map<String, dynamic>> _questions = [];
+  final Set<int> _completedQuestionIndices = {};
   final Map<int, Map<String, dynamic>> _submissions = {};
   // answer instead, so each one needs its own persisted controller
   // (keyed by question index, same as _submissions).
@@ -74,7 +75,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     int firstUnanswered() {
       for (var i = 0; i < _questions.length; i++) {
         if (_questions[i]['questionType'] != 'theory' &&
-            _submissions[i] == null) {
+            !_completedQuestionIndices.contains(i)) {
           return i;
         }
       }
@@ -82,7 +83,13 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     }
 
     var idx = firstUnanswered();
-    if (idx == -1) idx = 0;
+    while (idx == -1 && _hasMore && mounted) {
+      _page++;
+      await _fetchQuestions(isLoadMore: true);
+      if (!mounted) return;
+      idx = firstUnanswered();
+    }
+    if (idx == -1) idx = _questions.isEmpty ? 0 : _questions.length - 1;
     if (idx > 0 && mounted) setState(() => _currentIndex = idx);
   }
 
@@ -198,15 +205,11 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
           for (var i = 0; i < parsed.length; i++) {
             final submission = parsed[i]['submission'];
             if (submission is Map<String, dynamic>) {
-              _submissions[startIndex + i] = {
-                'selectedOptionIndex':
-                    int.tryParse(
-                      submission['selectedOptionIndex']?.toString() ?? '',
-                    ) ??
-                    0,
-                'isCorrect': submission['isCorrect'] == true,
-                'answerText': submission['answerText']?.toString() ?? '',
-              };
+              // Persist completion for resume/navigation, but reveal answer
+              // feedback only for attempts made in this screen session.
+              _completedQuestionIndices.add(startIndex + i);
+            } else if (parsed[i]['isCompleted'] == true) {
+              _completedQuestionIndices.add(startIndex + i);
             }
           }
         });
@@ -245,6 +248,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
             'selectedOptionIndex': optionIndex,
             'isCorrect': data['isCorrect'] == true,
           };
+          _completedQuestionIndices.add(_currentIndex);
           _isSubmittingAnswer = false;
         });
       } catch (_) {
@@ -257,6 +261,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
           'selectedOptionIndex': optionIndex,
           'isCorrect': optionIndex == correctIdx,
         };
+        _completedQuestionIndices.add(_currentIndex);
         _isSubmittingAnswer = false;
       });
     }
@@ -292,11 +297,12 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     if (_currentIndex == 0) return;
     setState(() {
       _currentIndex--;
+      _submissions.remove(_currentIndex);
     });
   }
 
   Future<bool> _markTheoryRead(Map<String, dynamic> question) async {
-    if (_topicReadOnly || _submissions[_currentIndex] != null) return true;
+    if (_topicReadOnly || _completedQuestionIndices.contains(_currentIndex)) return true;
     final questionId = question['_id'] as String;
     if (questionId.isEmpty) return false;
     final response = await APIService.postApiCaller(
@@ -306,7 +312,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
       showLoader: false,
     );
     if (response == "Error" || !mounted) return false;
-    setState(() => _submissions[_currentIndex] = {'readOnly': true});
+    setState(() {
+      _submissions[_currentIndex] = {'readOnly': true};
+      _completedQuestionIndices.add(_currentIndex);
+    });
     return true;
   }
 
@@ -314,7 +323,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     final currentQ = _questions[_currentIndex];
     final isTheory = currentQ['questionType'] == 'theory';
     if (!_topicReadOnly && isTheory && !await _markTheoryRead(currentQ)) return;
-    if (!_topicReadOnly && !isTheory && _submissions[_currentIndex] == null) {
+    if (!_topicReadOnly && !isTheory && !_completedQuestionIndices.contains(_currentIndex)) {
       return;
     }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/BoardClassSelection.dart';
+import '../Helper/TabletHelper.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
 
@@ -283,8 +284,8 @@ class _ClassSelectionScreenState extends State<ClassSelectionScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: TabletHelper.getGridCount(context, mobile: 4, tablet: 6),
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
         childAspectRatio: 0.68,

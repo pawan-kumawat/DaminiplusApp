@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
+import '../Helper/TabletHelper.dart';
 import '../helper/AppSharedPreferencesData.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
@@ -13,7 +14,6 @@ import 'other_course_chapters_screen.dart';
 import 'lesson_content_screen.dart';
 import 'courses_screen.dart';
 import 'study_material_list_screen.dart';
-import 'profile_screen.dart';
 import 'app_settings_screen.dart';
 import 'notifications_screen.dart';
 import 'language_selection_screen.dart';
@@ -166,57 +166,28 @@ class _HomeScreenState extends State<HomeScreen> {
     _userName = await AppSharedPreferencesData.getUserName();
     _userId = await AppSharedPreferencesData.getUserId();
 
-    final results = await Future.wait([
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getDashboard,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getCourses,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getMyBoards,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getMyExams,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getResume,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getRecentCourses,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getHomeSliders,
-        showLoader: false,
-      ),
-      APIService.getApiCaller(
-        context: context,
-        url: ApiUrls.getMyOtherCourses,
-        showLoader: false,
-      ),
-    ]);
+    final homeResponse = await APIService.getApiCaller(
+      context: context,
+      url: ApiUrls.getHomeData,
+      showLoader: false,
+    );
+    if (!mounted) return;
+    if (homeResponse == 'Error') {
+      setState(() => _isLoading = false);
+      return;
+    }
 
-    final dashRes = results[0];
-    final coursesRes = results[1];
-    final boardsRes = results[2];
-    final examsRes = results[3];
-    final resumeRes = results[4];
-    final recentRes = results[5];
-    final slidersRes = results[6];
-    final otherCoursesRes = results[7];
+    final homeData = jsonDecode(homeResponse)['data'] as Map<String, dynamic>;
+    String asApiResponse(dynamic value) =>
+        value == null ? 'Error' : jsonEncode({'status': true, 'data': value});
+    final dashRes = asApiResponse(homeData['dashboard']);
+    final coursesRes = asApiResponse(homeData['courses']);
+    final boardsRes = asApiResponse(homeData['myBoards']);
+    final examsRes = asApiResponse(homeData['myExams']);
+    final resumeRes = asApiResponse(homeData['resume']);
+    final recentRes = asApiResponse(homeData['recentCourses']);
+    final slidersRes = asApiResponse(homeData['homeSliders']);
+    final otherCoursesRes = asApiResponse(homeData['myOtherCourses']);
 
     if (recentRes != "Error") {
       try {
@@ -369,16 +340,15 @@ class _HomeScreenState extends State<HomeScreen> {
       final ownedClassIds = enrolledBoards
           .map<String>((e) => e['classId']?.toString() ?? '')
           .toSet();
-      final classResults = await Future.wait(
-        _catalogueBoards.map(
-          (board) => APIService.getApiCaller(
-            context: context,
-            url: ApiUrls.getClasses(board['_id'] as String),
-            showLoader: false,
-          ),
-        ),
-      );
-      if (!mounted) return;
+      final classData = (homeData['classesByBoard'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .fold<Map<String, dynamic>>(
+            {},
+            (map, item) => map..[item['boardId']?.toString() ?? ''] = item['data'] ?? [],
+          );
+      final classResults = _catalogueBoards
+          .map((board) => asApiResponse(classData[board['_id']]))
+          .toList();
       final classes = <Map<String, dynamic>>[];
       for (var i = 0; i < _catalogueBoards.length; i++) {
         final board = _catalogueBoards[i];
@@ -416,15 +386,12 @@ class _HomeScreenState extends State<HomeScreen> {
             : '';
         List<Map<String, dynamic>> subjects = [];
         if (boardId.isNotEmpty && classId.isNotEmpty) {
-          final res = await APIService.getApiCaller(
-            context: context,
-            url: ApiUrls.getSubjects(
-              languageId,
-              boardId: boardId,
-              classId: classId,
-            ),
-            showLoader: false,
-          );
+          final subjectData = (homeData['boardSubjects'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .cast<Map<String, dynamic>>()
+              .where((item) => item['boardId']?.toString() == boardId && item['classId']?.toString() == classId)
+              .firstOrNull?['data'];
+          final res = asApiResponse(subjectData ?? []);
           if (res != "Error") {
             try {
               final json = jsonDecode(res);
@@ -456,16 +423,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final examSections = await Future.wait(
       enrolledExams.map((entry) async {
         final examId = entry['examId']?.toString() ?? '';
-        final languageId = entry['language'] is Map
-            ? entry['language']['_id']?.toString() ?? ''
-            : '';
         List<Map<String, dynamic>> subjects = [];
         if (examId.isNotEmpty) {
-          final res = await APIService.getApiCaller(
-            context: context,
-            url: ApiUrls.getExamSubjects(languageId, examId: examId),
-            showLoader: false,
-          );
+          final subjectData = (homeData['examSubjects'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .where((item) => item['examId']?.toString() == examId)
+              .firstOrNull?['data'];
+          final res = asApiResponse(subjectData ?? []);
           if (res != "Error") {
             try {
               final json = jsonDecode(res);
@@ -494,19 +458,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final otherCourseSections = await Future.wait(
       enrolledOtherCourses.map((entry) async {
         final otherCourseId = entry['otherCourseId']?.toString() ?? '';
-        final languageId = entry['language'] is Map
-            ? entry['language']['_id']?.toString() ?? ''
-            : '';
         List<Map<String, dynamic>> subjects = [];
         if (otherCourseId.isNotEmpty) {
-          final res = await APIService.getApiCaller(
-            context: context,
-            url: ApiUrls.getOtherCourseSubjects(
-              languageId,
-              otherCourseId: otherCourseId,
-            ),
-            showLoader: false,
-          );
+          final subjectData = (homeData['otherCourseSubjects'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .where((item) => item['otherCourseId']?.toString() == otherCourseId)
+              .firstOrNull?['data'];
+          final res = asApiResponse(subjectData ?? []);
           if (res != "Error") {
             try {
               final json = jsonDecode(res);
@@ -684,10 +642,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ).then((_) => _loadData());
     }
   }
-
-  // Bottom-tab indices — matches MainScreen's _navItems order:
-  // 0 Home, 1 Other Courses, 2 My Course (progress), 3 Library, 4 Profile (settings).
-  static const int _tabProfile = 2;
 
   // CoursesScreen (board/exam browse) isn't a bottom-nav tab anymore —
   // tab 1 is Other Courses now — so this always pushes it directly.
@@ -1397,8 +1351,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: TabletHelper.getGridCount(context, mobile: 5, tablet: 7),
         mainAxisSpacing: 14,
         crossAxisSpacing: 6,
         childAspectRatio: 0.72,
@@ -1619,7 +1573,7 @@ class _HomeScreenState extends State<HomeScreen> {
         border: Border.all(color: const Color(0xFFF0F0F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -1875,7 +1829,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       errorBuilder: (_, __, ___) => Container(
                         padding: const EdgeInsets.all(9),
                         decoration: BoxDecoration(
-                          color: iconColor.withOpacity(0.1),
+                          color: iconColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(icon, color: iconColor, size: 22),
@@ -1885,7 +1839,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 : Container(
                     padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.1),
+                    color: iconColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(icon, color: iconColor, size: 22),

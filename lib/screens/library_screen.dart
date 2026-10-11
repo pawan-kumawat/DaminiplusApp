@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import '../Helper/AdHelper.dart';
 import '../Helper/AppColors.dart';
 import '../Helper/AppLocalizations.dart';
+import '../Helper/TabletHelper.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
 import '../utils/format_utils.dart';
@@ -641,8 +642,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             Expanded(
               child: GridView.builder(
                 padding: const EdgeInsets.only(bottom: 24),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: TabletHelper.getGridCount(context, mobile: 3, tablet: 5),
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 18,
                   childAspectRatio: 0.56,
@@ -737,7 +738,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildCategoryGrid() {
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: TabletHelper.getGridCount(context, mobile: 2, tablet: 4),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 10,

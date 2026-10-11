@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
     <!-- Teacher explanation recording (frontend/teacher-record.html, opened
          in a WebView from TeacherRecordScreen) narrates over the drawing
          via the page's own getUserMedia({audio:true}) — the runtime

@@ -29,6 +29,10 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   bool _courseUpdates = true;
   bool _generalNotifications = true;
 
+  List<Map<String, dynamic>> _boardEntries = [];
+  List<Map<String, dynamic>> _examEntries = [];
+  List<Map<String, dynamic>> _otherCourseEntries = [];
+
   @override
   void initState() {
     super.initState();
@@ -37,22 +41,73 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final result = await APIService.getApiCaller(
-      context: context,
-      url: ApiUrls.notificationPreferences,
-      showLoader: false,
-    );
+    final results = await Future.wait([
+      APIService.getApiCaller(
+        context: context,
+        url: ApiUrls.notificationPreferences,
+        showLoader: false,
+      ),
+      APIService.getApiCaller(
+        context: context,
+        url: ApiUrls.getBoardsProgress,
+        showLoader: false,
+      ),
+      APIService.getApiCaller(
+        context: context,
+        url: ApiUrls.getExamsProgress,
+        showLoader: false,
+      ),
+      APIService.getApiCaller(
+        context: context,
+        url: ApiUrls.getOtherCoursesProgress,
+        showLoader: false,
+      ),
+    ]);
     if (!mounted) return;
 
-    if (result != "Error") {
+    if (results[0] != "Error") {
       try {
-        final data = jsonDecode(result)['data'] as Map<String, dynamic>?;
-        setState(() {
-          _studyReminder = data?['studyReminder'] ?? true;
-          _examAlerts = data?['examAlerts'] ?? true;
-          _courseUpdates = data?['courseUpdates'] ?? true;
-          _generalNotifications = data?['generalNotifications'] ?? true;
-        });
+        final data = jsonDecode(results[0])['data'] as Map<String, dynamic>?;
+        _studyReminder = data?['studyReminder'] ?? true;
+        _examAlerts = data?['examAlerts'] ?? true;
+        _courseUpdates = data?['courseUpdates'] ?? true;
+        _generalNotifications = data?['generalNotifications'] ?? true;
+      } catch (_) {}
+    }
+
+    if (results[1] != "Error") {
+      try {
+        final list = jsonDecode(results[1])['data'] as List<dynamic>? ?? [];
+        _boardEntries = list.map<Map<String, dynamic>>((e) => {
+          'boardId': e['boardId']?.toString() ?? '',
+          'boardName': e['boardName']?.toString() ?? 'Board',
+          'classId': e['classId']?.toString() ?? '',
+          'className': e['className']?.toString() ?? '',
+          'stream': e['stream']?.toString() ?? '',
+          'isActive': e['isActive'] == true,
+        }).toList();
+      } catch (_) {}
+    }
+
+    if (results[2] != "Error") {
+      try {
+        final list = jsonDecode(results[2])['data'] as List<dynamic>? ?? [];
+        _examEntries = list.map<Map<String, dynamic>>((e) => {
+          'examId': e['examId']?.toString() ?? '',
+          'examName': e['examName']?.toString() ?? 'Exam',
+          'isActive': e['isActive'] == true,
+        }).toList();
+      } catch (_) {}
+    }
+
+    if (results[3] != "Error") {
+      try {
+        final list = jsonDecode(results[3])['data'] as List<dynamic>? ?? [];
+        _otherCourseEntries = list.map<Map<String, dynamic>>((e) => {
+          'otherCourseId': e['otherCourseId']?.toString() ?? '',
+          'otherCourseName': e['otherCourseName']?.toString() ?? 'Course',
+          'isActive': e['isActive'] == true,
+        }).toList();
       } catch (_) {}
     }
 
@@ -367,9 +422,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _groupHeader(Icons.school_rounded, t.text('My Courses')),
-                      const SizedBox(height: 12),
-                      _buildAddCourseCard(),
+                      _buildMyCoursesSection(),
 
                       const SizedBox(height: 26),
                       _groupHeader(Icons.tune_rounded, t.text('Preferences')),
@@ -716,6 +769,275 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildMyCoursesSection() {
+    final t = AppLocalizations.of(context);
+    final courseCards = <Widget>[];
+
+    for (final b in _boardEntries) {
+      final boardName = b['boardName'] as String;
+      final className = b['className'] as String;
+      final stream = b['stream'] as String;
+      final title = className.isNotEmpty
+          ? '$boardName - $className${stream.isNotEmpty ? ' ($stream)' : ''}'
+          : boardName;
+      final isActive = b['isActive'] == true;
+
+      courseCards.add(_buildCourseTile(
+        icon: Icons.school_rounded,
+        iconColor: const Color(0xFF3B82F6),
+        title: title,
+        subtitle: 'Board Course',
+        isActive: isActive,
+        onRemove: () => _removeBoardCourse(b['boardId'], b['classId'], title),
+        onSwitch: () => _switchBoardCourse(b['boardId'], b['classId']),
+      ));
+    }
+
+    for (final e in _examEntries) {
+      final examName = e['examName'] as String;
+      final isActive = e['isActive'] == true;
+
+      courseCards.add(_buildCourseTile(
+        icon: Icons.assignment_rounded,
+        iconColor: const Color(0xFF8B5CF6),
+        title: examName,
+        subtitle: 'Competitive Exam',
+        isActive: isActive,
+        onRemove: () => _removeExamCourse(e['examId'], examName),
+        onSwitch: () => _switchExamCourse(e['examId']),
+      ));
+    }
+
+    for (final o in _otherCourseEntries) {
+      final courseName = o['otherCourseName'] as String;
+      final isActive = o['isActive'] == true;
+
+      courseCards.add(_buildCourseTile(
+        icon: Icons.menu_book_rounded,
+        iconColor: const Color(0xFF10B981),
+        title: courseName,
+        subtitle: 'Special Course',
+        isActive: isActive,
+        onRemove: () => _removeOtherCourse(o['otherCourseId'], courseName),
+        onSwitch: () => _switchOtherCourse(o['otherCourseId']),
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _groupHeader(Icons.school_rounded, t.text('My Courses')),
+        const SizedBox(height: 12),
+        if (courseCards.isNotEmpty) ...[
+          ...courseCards,
+          const SizedBox(height: 4),
+        ],
+        _buildAddCourseCard(),
+      ],
+    );
+  }
+
+  Widget _buildCourseTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool isActive,
+    required VoidCallback onSwitch,
+    required VoidCallback onRemove,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive ? AppColors.primaryBlue : const Color(0xFFE5E7EB),
+          width: isActive ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.navy,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isActive) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Active',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryBlue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (!isActive)
+            IconButton(
+              icon: const Icon(Icons.swap_horiz_rounded, color: AppColors.primaryBlue, size: 20),
+              tooltip: 'Switch Active Course',
+              onPressed: onSwitch,
+            ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+            tooltip: 'Remove Course',
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _switchBoardCourse(String boardId, String classId) async {
+    await APIService.putApiCaller(
+      context: context,
+      url: ApiUrls.switchBoard,
+      body: {"boardId": boardId, "classId": classId},
+    );
+    if (!mounted) return;
+    _load();
+  }
+
+  Future<void> _switchExamCourse(String examId) async {
+    await APIService.putApiCaller(
+      context: context,
+      url: ApiUrls.selectExam,
+      body: {"examId": examId},
+    );
+    if (!mounted) return;
+    _load();
+  }
+
+  Future<void> _switchOtherCourse(String otherCourseId) async {
+    await APIService.putApiCaller(
+      context: context,
+      url: ApiUrls.switchOtherCourse,
+      body: {"otherCourseId": otherCourseId},
+    );
+    if (!mounted) return;
+    _load();
+  }
+
+  Future<void> _removeBoardCourse(String boardId, String classId, String title) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Remove Course', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
+        content: Text('Remove "$title"? You can add it back anytime.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    await APIService.deleteApiCaller(
+      context: context,
+      url: ApiUrls.removeBoardEnrollment(boardId, classId),
+    );
+    if (!mounted) return;
+    _load();
+  }
+
+  Future<void> _removeExamCourse(String examId, String title) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Remove Course', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
+        content: Text('Remove "$title"? You can add it back anytime.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    await APIService.deleteApiCaller(
+      context: context,
+      url: ApiUrls.removeExamEnrollment(examId),
+    );
+    if (!mounted) return;
+    _load();
+  }
+
+  Future<void> _removeOtherCourse(String otherCourseId, String title) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Remove Course', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
+        content: Text('Remove "$title"? You can add it back anytime.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    await APIService.deleteApiCaller(
+      context: context,
+      url: ApiUrls.removeOtherCourseEnrollment(otherCourseId),
+    );
+    if (!mounted) return;
+    _load();
   }
 
   Widget _buildAddCourseCard() {

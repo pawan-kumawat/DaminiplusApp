@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../Helper/AppColors.dart';
+import '../Helper/TabletHelper.dart';
 import '../API/API.dart';
 import '../API/ApiUrls.dart';
 import 'other_course_language_selection_screen.dart';
@@ -242,7 +243,7 @@ class _OtherCourseDetailScreenState extends State<OtherCourseDetailScreen> {
       ('Questions', _stats['questionsCount'], Icons.quiz_outlined),
     ];
     return GridView.count(
-      crossAxisCount: 4,
+      crossAxisCount: TabletHelper.getGridCount(context, mobile: 4, tablet: 4),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 10,

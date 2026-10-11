@@ -470,8 +470,10 @@ class _TopicsScreenState extends State<TopicsScreen> {
                         openedFromTopicList: true,
                       ),
                     ),
-                  ).then((completed) {
-                    if (completed == true) _refreshProgress();
+                  ).then((_) {
+                    // Any answer submission changes this topic's progress,
+                    // even when the student leaves before finishing it.
+                    _refreshProgress();
                   });
                 },
               );
